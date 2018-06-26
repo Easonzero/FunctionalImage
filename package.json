@@ -1,0 +1,26 @@
+{
+  "name": "functional-image",
+  "version": "1.0.0",
+  "description": "an functional image process library accelerated by GPU",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "functional",
+    "image",
+    "process",
+    "webgl",
+    "gpu"
+  ],
+  "author": "easonzero",
+  "license": "ISC",
+  "dependencies": {
+    "gpu.js": "^1.4.3"
+  },
+  "devDependencies": {
+    "rollup": "^0.61.1",
+    "rollup-plugin-commonjs": "^9.1.3",
+    "rollup-plugin-node-resolve": "^3.3.0"
+  }
+}
