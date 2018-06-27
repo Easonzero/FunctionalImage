@@ -91,10 +91,8 @@ pure(image)
 .run()
 .then(console.log)
 ```
-![filter1](./image/filter1.png)
-![filter2](./image/filter2.png)
-![filter3](./image/filter3.png)
-![filter4](./image/filter4.png)
+
+![filter](./image/filter.png)
 
 5. join...(开发中!)
 

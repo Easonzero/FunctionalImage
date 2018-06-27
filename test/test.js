@@ -15,9 +15,15 @@ for(let i=0;i<219;i++){
 
 image.src = './headpic.jpg';
 image.onload = () => {
-    pure(a=>b=>a*b,'RGB')
-        .ap(image)
-        .ap(data)//data是一个与图片等尺寸的float二维数组
+    pure(image)
+        .convolute([
+            [0.167,  0,0,0,0,0],
+            [0,  0.167,0,0,0,0],
+            [0,  0,0.167,0,0,0],
+            [0,  0,0,0.167,0,0],
+            [0,  0,0,0,0.167,0],
+            [0,  0,0,0,0,0.167]
+        ])
         .run()
         .then(console.log)
 };
