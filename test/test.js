@@ -15,9 +15,16 @@ for(let i=0;i<219;i++){
 
 image.src = './headpic.jpg';
 image.onload = () => {
-    pure(r=>g=>b=>a=>r2=>g2=>b2=>a2=>r-g2,'N')
-        .ap(image)
-        .ap(image)
+    pure(image)
+        .convolute([
+            [0.167,  0,0,0,0,0],
+            [0,  0.167,0,0,0,0],
+            [0,  0,0.167,0,0,0],
+            [0,  0,0,0.167,0,0],
+            [0,  0,0,0,0.167,0],
+            [0,  0,0,0,0,0.167]
+
+        ])
         .run(true)
         .then(console.log)
 };

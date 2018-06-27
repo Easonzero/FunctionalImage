@@ -1,4 +1,4 @@
-export const combineFunction = a => b => function(c){return b(a(c))};
+export const combineFunction = a => b => c => b(a(c));
 
 export const combineKernel = gpu => a => b  => (
     gpu.combineKernels(a,b,combineFunction(a)(b))

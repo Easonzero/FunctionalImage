@@ -62,3 +62,10 @@ export const  convertCanvasToImage = (canvas) => {
     image.src = canvas.toDataURL("image/png");
     return image;
 };
+
+export const modifyVector = v1 => v2 => {
+    if(v1.length !== v2.length) return;
+    for(let i=0;i<v1.length;i++){
+        v1[i] = v2[i];
+    }
+};
