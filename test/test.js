@@ -8,23 +8,16 @@ const data = [];
 for(let i=0;i<219;i++){
     let dataTmp = [];
     for(let j=0;j<219;j++){
-        dataTmp.push(1);
+        dataTmp.push(0.5);
     }
     data.push(dataTmp);
 }
 
 image.src = './headpic.jpg';
 image.onload = () => {
-    pure(image)
-        .convolute([
-            [0.167,  0,0,0,0,0],
-            [0,  0.167,0,0,0,0],
-            [0,  0,0.167,0,0,0],
-            [0,  0,0,0.167,0,0],
-            [0,  0,0,0,0.167,0],
-            [0,  0,0,0,0,0.167]
-
-        ])
-        .run(true)
+    pure(a=>b=>a*b,'RGB')
+        .ap(image)
+        .ap(data)//data是一个与图片等尺寸的float二维数组
+        .run()
         .then(console.log)
 };

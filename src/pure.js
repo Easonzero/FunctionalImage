@@ -206,7 +206,7 @@ const convolute = gpu => function(data){
     return this;
 };
 
-const run = gpu => function(toArray=false){
+const run = gpu => function(toArray=true){
     let [last,kernels] = this._kernels;
     if(isUndefined(kernels))
         return promiseKernel(last)(this._baseParam).then(
