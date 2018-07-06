@@ -25,7 +25,7 @@ import {
 } from './const';
 
 import {
-    add,multi
+    add,multi,divInt
 } from './math';
 
 const targetBase = ['N','R','G','B','A'];
@@ -167,17 +167,19 @@ const bind =  gpu => chainKernel(gpu)(
 );
 
 const convoluteMapping = aIsNumber => bIsNumber => new Function('a','b',
-    `let sum = ${aIsNumber?'b':'a'}[this.thread.y][this.thread.x];
+    `let beginX = this.thread.x * this.constants.step;
+     let beginY = this.thread.y * this.constants.step;
+     let sum = ${aIsNumber?'b':'a'}[beginY][beginX];
      sum = ${aIsNumber&&bIsNumber?'0':'vec4(0,0,0,0)'}
      for(let y=0;y<this.constants.sizeY;y++)
      for(let x=0;x<this.constants.sizeX;x++)
         sum += b[y][x] *
-            a[this.thread.y+y][this.thread.x+x];
+            a[beginY+y][beginX+x];
      ${aIsNumber&&bIsNumber?'return sum;':
         'this.color(sum[0],sum[1],sum[2],1)'}`
 );
 
-const convolute = gpu => function(data){
+const convolute = gpu => function(data,step=1){
     let aIsNumber = TYPE_NUMBER === this._outputType,bIsNumber;
     let size;
 
@@ -195,8 +197,8 @@ const convolute = gpu => function(data){
     }
 
     let newKernel = gpu.createKernel(convoluteMapping(aIsNumber)(bIsNumber),{
-        constants:{sizeX:size[0],sizeY:size[1]},
-        output:add(add(this._size)(1))(multi(size)(-1))
+        constants:{sizeX:size[0],sizeY:size[1],step:step},
+        output:add(divInt(add(this._size)(multi(size)(-1)))(step))(-1)
     })
         .setOutputToTexture(true)
         .setGraphical(!(aIsNumber&&bIsNumber));

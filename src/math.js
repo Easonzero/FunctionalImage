@@ -17,3 +17,10 @@ export const add = a => b => {
     else if(typeof b === 'number')
         return a.map(e=>e+b);
 };
+
+export const divInt = a => b => {
+    if(!a instanceof Array)
+        return parseInt(a/b);
+    
+    return a.map(x=>x/b);
+}
