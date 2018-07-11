@@ -178,7 +178,7 @@ const convoluteMapping = aIsNumber => bIsNumber => new Function('a','b',
      ${aIsNumber&&bIsNumber?'return sum;':
         'this.color(sum[0],sum[1],sum[2],1)'}`
 );
-
+//todo curry
 const convolute = gpu => function(data,step=1){
     let aIsNumber = TYPE_NUMBER === this._outputType,bIsNumber;
     let size;
@@ -233,7 +233,9 @@ const run = gpu => function(toArray=true){
             texture.toArray(gpu):undefined
     })
 };
-
+//todo remove state setting in pure() and create a class manage state
+//todo change state which put on data into that which put on a new object
+//todo the object manager the data and function on the chain, and run the chain lazy 
 const pure = gpu => (data,target='N') => {
     if(isFunction(data)){
         data = combineFunction(arrow2anonymous)(anonymous2named)(data);
