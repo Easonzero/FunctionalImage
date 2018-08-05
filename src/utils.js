@@ -50,5 +50,3 @@ export const modifyVector = v1 => v2 => {
         v1[i] = v2[i];
     }
 };
-
-export const last = array => array[array.length-1]

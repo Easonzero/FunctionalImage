@@ -1,11 +1,15 @@
-import {TYPE_NUMBER,TYPE_PIXEL,TARGET_BASE} from './const'
+import {TYPE_NUMBER, TYPE_PIXEL, TARGET_BASE, TYPE_FUNCTION} from './const'
+import {is2DArray, isUndefined} from "./utils";
+import {call} from "./superfunction";
+import {promiseKernel} from "./kernel";
 
 const targetRemapping = (target) => {
-    let [isNumber, ...colorDist] = TARGET_BASE.map(c => target.toUpperCase().includes(c));
+    target = target.toUpperCase();
+    let [isNumber, ...colorDist] = TARGET_BASE.map(c => target.includes(c));
     return { isNumber, colorDist };
 };
 
-const calParamLength = param => {
+const _calParamLength = param => {
     switch (param.type) {
         case TYPE_NUMBER:
             return 1;
@@ -16,8 +20,8 @@ const calParamLength = param => {
     }
 };
 
-const calParamsLength = outputIsNumber => param =>
-    outputIsNumber ? calParamLength(param) : 1;
+const calParamLength = outputIsNumber => param =>
+    outputIsNumber ? _calParamLength(param) : 1;
 
 const parseType = data => {
     if (is2DArray(data) || !isUndefined(data.output)) {
@@ -26,30 +30,47 @@ const parseType = data => {
         return TYPE_PIXEL;
     } else
         return TYPE_FUNCTION;
-}
+};
+
+const paramAttr = param => {
+    if(!(param instanceof Param))
+        param = new Param(param);
+
+    return {
+        type: param.type,
+        size: param.size
+    }
+};
+
+const paramValue = param => {
+    if(param instanceof Param)
+        return param.get();
+
+    return param;
+};
 
 class Param {
     constructor(data){
-        this.origin_data = data;
+        this.data = data;
         let type = parseType(data);
-        if (type == TYPE_NUMBER) {
+        if (type === TYPE_NUMBER) {
             this.type = type;
             this.size = data.size ? data.size : [data[0].length, data.length];
-        } else if(type == TYPE_PIXEL) {
+        } else if(type === TYPE_PIXEL) {
             this.type = type;
             this.size = [data.width, data.height];
         } else 
-            throw ('type of param must be 2d_array or h5_image')
+            throw ('Type of param must be 2d_array or h5_image')
     }
 
     get(){
-        return this.origin_data;
+        return this.data;
     }
 }
 
 class CurryFunction {
     constructor(f, paramlen, target){
-        this.origin_f = f;
+        this.f = f;
         this.target = targetRemapping(target);
         this.params = [];
         this.total_paramlen = paramlen;
@@ -57,24 +78,26 @@ class CurryFunction {
     }
  
     apply(param){
-        if(!param instanceof Param)
+        if(!(param instanceof Param))
             param = new Param(param);
         this.params.push(param);
         this.cur_paramlen += calParamLength(this.target.isNumber)(param);
 
         if(this.cur_paramlen > this.total_paramlen) 
-            throw ('too many params are applied')
+            throw ('Too many params are applied');
 
         return this;
     }
 
+    get rtType(){
+        return this.target.isNumber?TYPE_NUMBER:TYPE_PIXEL;
+    }
+    // list(param) => kernel
     get(){
-        if (this.cur_paramlen !== this.total_paramlen) 
-            return this;
-        
-        let kernel = param => this.origin_f([this.params,param].map(param=>{param.type,param.size}))(this.target);
-        
-        return param => [kernel(param)(...this.params,param)]
+        let kernel = params =>
+            this.f([...this.params, ...params].map(paramAttr))(this.target);
+
+        return (...params) => kernel(params)(...this.params.concat(params).map(paramValue))
     }
 }
 
@@ -82,20 +105,25 @@ class ContainerFunction {
     constructor(f, prevs){
         this.f = f;
         this.prevs = prevs;
+        this.params = [];
     }
 
     apply(param){
-        this.f.apply(param)
+        this.params.push(param);
         return this;
     }
 
+    get rtType(){
+        return this.f.rtType;
+    }
+    // list(param) => kernel
     get(){
-        let kernel = this.f.get();
-        if(kernel instanceof CurryFunction)
-            return this;
-        
-        
+        let kernelf = this.f.get();
+        if(this.prevs)
+            return (...params) => this.prevs.then(param=>kernelf(param,...this.params,...params));
+        else
+            return (...params) => promiseKernel(kernelf)(this.params.concat(params));
     }
 }
 
-export {parseType, Param, CurryFunction}
+export {parseType, Param, CurryFunction, ContainerFunction}
