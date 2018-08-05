@@ -1,8 +1,3 @@
-import {
-    TYPE_PIXEL,
-    TYPE_NUMBER
-} from "./const";
-
 export const isUndefined = a => typeof a === 'undefined';
 
 export const isFunction = a => typeof a === 'function';
@@ -18,20 +13,6 @@ export const genParamsName = l => {
     }
     return params;
 };
-
-const calParamLength = param => {
-    switch (param._outputType){
-        case TYPE_NUMBER:
-            return 1;
-        case TYPE_PIXEL:
-            return 4;
-        default:
-            return 1;
-    }
-};
-
-export const calParamsLength = outputIsNumber => params =>
-    params.reduce((r,e)=>r+=outputIsNumber?calParamLength(e):1,0);
 
 export const arrow2anonymous = f => {
     let funcstr = f.toString();
