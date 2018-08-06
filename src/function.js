@@ -1,7 +1,8 @@
 import {TYPE_NUMBER, TYPE_PIXEL, TARGET_BASE, TYPE_FUNCTION} from './const'
-import {is2DArray, isUndefined} from "./utils";
+import { is2DArray, isUndefined, convertCanvasToImage } from "./utils";
 import {call} from "./superfunction";
 import {promiseKernel} from "./kernel";
+import { loopShift } from './list';
 
 const targetRemapping = (target) => {
     target = target.toUpperCase();
@@ -69,23 +70,16 @@ class Param {
 }
 
 class CurryFunction {
-    constructor(f, paramlen, target){
+    constructor(f, target){
         this.f = f;
         this.target = targetRemapping(target);
         this.params = [];
-        this.total_paramlen = paramlen;
-        this.cur_paramlen = 0;
     }
  
     apply(param){
         if(!(param instanceof Param))
             param = new Param(param);
         this.params.push(param);
-        this.cur_paramlen += calParamLength(this.target.isNumber)(param);
-
-        if(this.cur_paramlen > this.total_paramlen) 
-            throw ('Too many params are applied');
-
         return this;
     }
 
@@ -93,22 +87,25 @@ class CurryFunction {
         return this.target.isNumber?TYPE_NUMBER:TYPE_PIXEL;
     }
     // list(param) => kernel
-    get(){
-        let kernel = params =>
-            this.f([...this.params, ...params].map(paramAttr))(this.target);
+    get(gpu){
+        let kernel = params => 
+            this.f(loopShift([...this.params, ...params]).map(paramAttr))(this.target);
 
-        return (...params) => kernel(params)(...this.params.concat(params).map(paramValue))
+        return (...params) => kernel(params)(...loopShift([...this.params, ...params]).map(paramValue))
     }
 }
 
 class ContainerFunction {
-    constructor(f, prevs, prevTarget){
+    constructor(f, prevs){
         this.f = f;
         this.prevs = prevs;
         this.params = [];
     }
 
     apply(param){
+        if (!(param instanceof Param))
+            param = new Param(param);
+
         this.params.push(param);
         return this;
     }
@@ -117,12 +114,21 @@ class ContainerFunction {
         return this.f.rtType;
     }
     // list(param) => kernel
-    get(){
-        let kernelf = this.f.get();
+    get(gpu,copyToImage=true){
+        let kernelf = this.f.get(gpu);
         if(this.prevs)
-            return (...params) => this.prevs.then(param=>kernelf(param,...this.params,...params));
+            return (...params) => this.prevs.then(
+                param =>
+                    promiseKernel(gpu)
+                    (this.rtType === TYPE_PIXEL && copyToImage)
+                    (kernelf)
+                    (param, ...this.params, ...params)
+            )
         else
-            return (...params) => promiseKernel(kernelf)(this.params.concat(params));
+            return (...params) => 
+                promiseKernel(gpu)
+                (this.rtType === TYPE_PIXEL && copyToImage)
+                (kernelf)(...this.params,...params);
     }
 }
 

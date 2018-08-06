@@ -15,9 +15,10 @@ for(let i=0;i<219;i++){
 
 image.src = './headpic.jpg';
 image.onload = () => {
-    pure(x=>y=>x*y,'RGB')
-        .ap(data)
-        .ap(image)
-        .run()
-        .then(console.log)
+    pure(image)
+        .fmap(r=>g=>b=>a=>r,'N')
+        .fmap(x=>x-0.3,'G')
+        .fmap(x=>1,'RB')
+        .fmap(x=>1,'A')
+        .draw();
 };

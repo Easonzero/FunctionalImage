@@ -40,7 +40,7 @@ const anonymous2named = (f) => {
     return f;
 };
 
-const convertCanvasToImage = (canvas) => {
+const  convertCanvasToImage = (canvas) => {
     let image = new Image();
     image.src = canvas.toDataURL("image/png");
     return image;
@@ -54,11 +54,9 @@ const modifyVector = v1 => v2 => {
 };
 
 const combine = (a,...fs) => {
-    if(fs.length > 0) return c => a(combine(...fs)(c));
+    if(fs.length > 0) return (...c) => a(combine(...fs)(...c));
     else return a
 };
-
-
 
 const constf = a => () => a;
 
@@ -97,22 +95,17 @@ const TYPE_FUNCTION = 2;
 
 const TARGET_BASE = ['N', 'R', 'G', 'B', 'A'];
 
-const promiseKernel = kernel => params => new Promise((resolve, reject) => {
+const promiseKernel = gpu => copyToImage => kernel => (...params) => new Promise((resolve, reject) => {
     let result = -1;
     result = kernel(...params);
     if (result !== -1) {
+        if (copyToImage)
+            result = convertCanvasToImage(gpu._canvas);
         resolve(result);
     } else reject();
 });
 
-const promiseKernels = gpu => kernels => kernels.map(
-    kernel => combine(
-        promise=>promise.then(convertCanvasToImage(gpu._canvas)),
-        promiseKernel(kernel)
-    )
-);
-
-const combinePromiseKernels = (...promise_kernels) => promise_kernels.reduce((r,promise_kernel)=>r.then(promise_kernel));
+const combinePromiseKernels = promise_kernels => promise_kernels.reduce((r,promise_kernel)=>r.then(promise_kernel));
 
 // functions which map function to kernel
 
@@ -193,6 +186,8 @@ const bind = gpu =>
             .setGraphical(!target.isNumber);
     };
 
+// todo joinmapping/join
+
 const convoluteMapping = aIsNumber => isNumber => new Function('a', 'b',
     `let beginX = this.thread.x * this.constants.step;
      let beginY = this.thread.y * this.constants.step;
@@ -200,40 +195,39 @@ const convoluteMapping = aIsNumber => isNumber => new Function('a', 'b',
      sum = ${isNumber ? '0' : 'vec4(0,0,0,0)'}
      for(let y=0;y<this.constants.sizeY;y++)
      for(let x=0;x<this.constants.sizeX;x++)
-        sum += b[beginY+y][beginX+x] *
-            a[y][x];
+        sum += b[y][x] *
+            a[beginY+y][beginX+x];
      ${isNumber? 'return sum;' :
         'this.color(sum[0],sum[1],sum[2],1)'}`
 );
 
 const convolute = gpu =>
     step => inputs => target =>
-        gpu.createKernel(convoluteMapping(inputs[0].type === TYPE_NUMBER)(target.isNumber), {
-            constants: { sizeX: inputs[0].size[0], sizeY: inputs[0].size[1], step: step },
-            output: add(divInt(add(inputs[1].size)(multi(inputs[0].size)(-1)))(step))(-1)
+        gpu.createKernel(convoluteMapping(inputs[1].type === TYPE_NUMBER)(target.isNumber), {
+            constants: { sizeX: inputs[1].size[0], sizeY: inputs[1].size[1], step: step },
+            output: add(divInt(add(inputs[0].size)(multi(inputs[1].size)(-1)))(step))(-1)
         })
             .setOutputToTexture(true)
             .setGraphical(!target.isNumber);
+
+const last = array => array[array.length-1];
+
+const head = array => array[0];
+
+const tail = array => array.slice(1,array.length);
+
+const front = array => array.slice(0,array.length-1);
+
+const loopShift = array => {
+    if(array.length === 0) return [];
+    return [...tail(array),head(array)];
+};
 
 const targetRemapping = (target) => {
     target = target.toUpperCase();
     let [isNumber, ...colorDist] = TARGET_BASE.map(c => target.includes(c));
     return { isNumber, colorDist };
 };
-
-const _calParamLength = param => {
-    switch (param.type) {
-        case TYPE_NUMBER:
-            return 1;
-        case TYPE_PIXEL:
-            return 4;
-        default:
-            return 1;
-    }
-};
-
-const calParamLength = outputIsNumber => param =>
-    outputIsNumber ? _calParamLength(param) : 1;
 
 const parseType = data => {
     if (is2DArray(data) || !isUndefined(data.output)) {
@@ -281,23 +275,16 @@ class Param {
 }
 
 class CurryFunction {
-    constructor(f, paramlen, target){
+    constructor(f, target){
         this.f = f;
         this.target = targetRemapping(target);
         this.params = [];
-        this.total_paramlen = paramlen;
-        this.cur_paramlen = 0;
     }
  
     apply(param){
         if(!(param instanceof Param))
             param = new Param(param);
         this.params.push(param);
-        this.cur_paramlen += calParamLength(this.target.isNumber)(param);
-
-        if(this.cur_paramlen > this.total_paramlen) 
-            throw ('Too many params are applied');
-
         return this;
     }
 
@@ -305,11 +292,11 @@ class CurryFunction {
         return this.target.isNumber?TYPE_NUMBER:TYPE_PIXEL;
     }
     // list(param) => kernel
-    get(){
-        let kernel = params =>
-            this.f([...this.params, ...params].map(paramAttr))(this.target);
+    get(gpu){
+        let kernel = params => 
+            this.f(loopShift([...this.params, ...params]).map(paramAttr))(this.target);
 
-        return (...params) => kernel(params)(...this.params.concat(params).map(paramValue))
+        return (...params) => kernel(params)(...loopShift([...this.params, ...params]).map(paramValue))
     }
 }
 
@@ -321,6 +308,9 @@ class ContainerFunction {
     }
 
     apply(param){
+        if (!(param instanceof Param))
+            param = new Param(param);
+
         this.params.push(param);
         return this;
     }
@@ -329,81 +319,95 @@ class ContainerFunction {
         return this.f.rtType;
     }
     // list(param) => kernel
-    get(){
-        let kernelf = this.f.get();
+    get(gpu,copyToImage=true){
+        let kernelf = this.f.get(gpu);
         if(this.prevs)
-            return (...params) => this.prevs.then(param=>kernelf(param,...this.params,...params));
+            return (...params) => this.prevs.then(
+                param =>
+                    promiseKernel(gpu)
+                    (this.rtType === TYPE_PIXEL && copyToImage)
+                    (kernelf)
+                    (param, ...this.params, ...params)
+            )
         else
-            return (...params) => promiseKernel(kernelf)(this.params.concat(params));
+            return (...params) => 
+                promiseKernel(gpu)
+                (this.rtType === TYPE_PIXEL && copyToImage)
+                (kernelf)(...this.params,...params);
     }
 }
-
-const last = array => array[array.length-1];
-
-const head = array => array[0];
-
-
-
-const front = array => array.slice(0,array.length-1);
 
 class Container {
     constructor(gpu, data, target){
         this.gpu = gpu;
         this.functions = [];
-        
         if(isFunction(data)){
-            let f = combine(anonymous2named,arrow2anonymous)(data);
-            let l = f.length;
-            f = application(gpu)(f);
-            let curry_f = new CurryFunction(f, l, target);
+            let f = combine(application(gpu),anonymous2named,arrow2anonymous)(data);
+            let curry_f = new CurryFunction(f, target);
             this.functions.push(curry_f);
         } else {
             let f = input=>target=>constf(data);
-            let curry_f = new CurryFunction(f, 0, target);
+            let curry_f = new CurryFunction(f, target);
             this.functions.push(curry_f);
         }
     }
 
     fmap(f, target){
-        f = combine(anonymous2named,arrow2anonymous)(f);
-        let l = f.length;
-        f = fmap(this.gpu)(f);
-        let curry_f = new CurryFunction(f, l, target);
+        f = combine(fmap(this.gpu),anonymous2named,arrow2anonymous)(f);
+        let curry_f = new CurryFunction(f, target);
         this.functions.push(curry_f);
         return this;
     }
 
     bind(f, target, bindSize = [1, 1]){
-        f = combine(anonymous2named,arrow2anonymous)(f);
-        let l = f.length;
-        f = bind(this.gpu)(bindSize)(f);
-        let curry_f = new CurryFunction(f, l, target);
+        f = combine(bind(this.gpu)(bindSize),anonymous2named,arrow2anonymous)(f);
+        let curry_f = new CurryFunction(f, target);
         this.functions.push(curry_f);
         return this;
     }
-    // todo join (act is fold)
+    
     join(f, target){
         return this;
     }
-    // support container_function
+    
     convolute(data,step=1){
-        let paramlen = 2;
         let f = convolute(this.gpu)(step);
-        let param = new Param(data);
-        let prevType = last(this.functions).rtType;
-        let target = param.type === TYPE_NUMBER &&
-            prevType === TYPE_NUMBER ?
-            'N':'RGBA';
 
-        let curry_f = new CurryFunction(f, paramlen, target);
-        curry_f.apply(param);
+        let type = undefined;
+        if(data instanceof ContainerFunction){
+            type = data.rtType;
+        }else{
+            data = new Param(data);
+            type = data.type;
+        }
+        
+        let prevType = last(this.functions).rtType;
+        let target = type === TYPE_NUMBER &&
+            prevType === TYPE_NUMBER ?
+            'N':'RGB';
+        let curry_f = new CurryFunction(f, target);
+
+        if(data instanceof ContainerFunction){
+            let containerf = new ContainerFunction(curry_f,data.get(this.gpu)());
+            this.functions.push(containerf);
+            return this;
+        }
+
+        curry_f.apply(data);
         this.functions.push(curry_f);
         return this;
     }
 
     ap(data){
-        let last_f = last(this.functions);
+        let last_f = this.functions.pop();
+
+        if(data instanceof ContainerFunction){
+            let containerf = new ContainerFunction(last_f,data.get(this.gpu)());
+            this.functions.push(containerf);
+            return this;
+        }
         last_f.apply(data);
+        this.functions.push(last_f);
         return this;
     }
 
@@ -416,41 +420,50 @@ class Container {
         return this;
     }
 
-    get(){
+    get(copyToImage=false){
         if(this.functions.length===1)
             return new ContainerFunction(head(this.functions));
-
         let prevs = front(this.functions);
         let f = last(this.functions);
 
-        let result = [], tmp = [];
+        let result = [], tmp = [], i = 0;
         for(let prevff of prevs){
-            let prevf = prevff.get();
+            let prevf = prevff.get(this.gpu);
             let type = prevff.rtType;
 
-            if(type === TYPE_NUMBER || prevff.total_paramlen === 0){
+            if(type === TYPE_NUMBER || (i===0&&prevff.params.length===0)){
                 tmp.push(prevf);
             }else if(type === TYPE_PIXEL){
                 tmp.push(prevf);
-                result.push(combine(tmp.reverse()));
+                result.push(combine(...tmp.reverse()));
                 tmp.length = 0;
             }
+            i++;
         }
         let restf = combine(...tmp.reverse());
         if(result.length === 0)
-            prevs = promiseKernel(restf)([]);
+            prevs = promiseKernel(this.gpu)(false)(restf)();
         else {
-            prevs = combinePromiseKernels(promiseKernels(this.gpu)(result));
+            result = result.map(promiseKernel(this.gpu)(true));
+            result[0] = result[0]();
+            prevs = combinePromiseKernels(result);
             prevs = prevs.then(restf);
         }
-
+        
         return new ContainerFunction(f, prevs);
     }
 
-    run(){
+    draw(){
         return this.get() // get container function
-                   .get() // get kernel function
-                       ();    // call the function
+                   .get(this.gpu,false) // get kernel function
+                       ();// call the function
+    }
+
+    output(){
+        return this.get()
+                   .get(this.gpu,false)
+                       ()
+                    .then(texture => texture.toArray(this.gpu))
     }
 }
 
