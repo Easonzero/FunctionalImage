@@ -15,12 +15,9 @@ for(let i=0;i<219;i++){
 
 image.src = './headpic.jpg';
 image.onload = () => {
-    pure(image)
-        .convolute([
-            [0.167,0,0],
-            [0,0.167,0],
-            [0,0,0.167],
-        ],2)
+    pure(x=>y=>x*y,'RGB')
+        .ap(data)
+        .ap(image)
         .run()
         .then(console.log)
 };
