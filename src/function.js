@@ -69,19 +69,18 @@ class CurryFunction {
     }
 
     get(){
-        if (this.cur_paramlen !== this.total_paramlen) 
-            return this;
-        
         let kernel = param => this.origin_f([this.params,param].map(param=>{param.type,param.size}))(this.target);
-        
         return param => [kernel(param)(...this.params,param)]
     }
 }
 
 class ContainerFunction {
-    constructor(f, prevs){
+    constructor(f, prevs, prevTarget){
         this.f = f;
         this.prevs = prevs;
+        this.params = [];
+        this.total_paramlen = f.total_paramlen;
+        this.cur_paramlen = f.cur_paramlen + ;
     }
 
     apply(param){
