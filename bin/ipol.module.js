@@ -120,6 +120,7 @@ const targetConvert = target => inputs => f =>
     target.isNumber ?
         `return ${f(inputs.map(call()))}` : `this.color(${target.colorDist.map(
             (x, i) => x ? `${f(inputs.map(call(i)))}` : inputs[0](i))})`;
+
 const inputConvert = isNumber => inputName => useri =>
     isNumber ? inputName : isUndefined(useri) ? [0, 1, 2, 3].map(i => `${inputName}[${i}]`) : `${inputName}[${useri}]`;
 
@@ -192,7 +193,6 @@ const bind = gpu =>
             .setOutputToTexture(true)
             .setGraphical(!target.isNumber);
     };
-
 const convoluteMapping = aIsNumber => isNumber => new Function('a', 'b',
     `let beginX = this.thread.x * this.constants.step;
      let beginY = this.thread.y * this.constants.step;
@@ -450,7 +450,7 @@ class Container {
     run(){
         return this.get() // get container function
                    .get() // get kernel function
-                       ();    // call the function
+                       ();// call the function
     }
 }
 
