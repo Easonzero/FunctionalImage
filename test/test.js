@@ -15,14 +15,7 @@ for(let i=0;i<219;i++){
 
 image.src = './headpic.jpg';
 image.onload = () => {
-    // pure(data)
-    //     .join(r=>c=>x=>y=>0,'RGB')
-    //     .fmap(x=>1,'A')
-    //     .run();
     pure(image)
-        .fmap(r=>g=>b=>a=>r,'N')
-        .fmap(x=>x-0.3,'G')
-        .fmap(x=>1,'RB')
-        .fmap(x=>1,'A')
+        .join(r=>c=>x=>y=>r*(y*2+x)/(y*2+x+1)+c/(y*2+x+1),'RGBA',[2, 2])
         .draw();
 };

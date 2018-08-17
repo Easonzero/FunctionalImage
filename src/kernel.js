@@ -1,11 +1,7 @@
 import {call, combine} from './superfunction';
 import {add, multi, divInt, div} from './math';
 import {convertCanvasToImage, genParamsName, isUndefined, modifyVector} from "./utils";
-<<<<<<< HEAD
 import {TYPE_PIXEL,TYPE_NUMBER,TARGET_BASE} from "./const";
-=======
-import {TYPE_NUMBER} from "./const";
->>>>>>> master
 
 // functions which operation kernels
 
@@ -123,12 +119,11 @@ const bind = gpu =>
 const joinMapping = input => target => f => new Function('functor',
     `let beginX = this.thread.x*this.constants.sizeX;
      let beginY = this.thread.y*this.constants.sizeY;
-     let input = functor[beginY][beginX];
      let first_input = functor[beginX][beginY];
      let N = 0,R = 0,G = 0,B = 0,A = 0;
      for(let y=0;y<this.constants.sizeY;y++)
      for(let x=0;x<this.constants.sizeX;x++){
-        input = functor[beginY+y][beginX+x];
+        let input = functor[beginY+y][beginX+x];
         ${accConvert(target)
     ([inputConvert(input === TYPE_NUMBER)('input')])
     ((target,inputs) => `${f.name}(${target},${inputs},x,y)`)}
@@ -140,8 +135,7 @@ const joinMapping = input => target => f => new Function('functor',
 const join = gpu =>
     joinSize => f => inputs => target => {
         let size = inputMinSize(inputs);
-        modifyVector(size)(divInt(joinSize)(size));
-
+        modifyVector(size)(divInt(size)(joinSize));
         return gpu.createKernel(joinMapping(...inputType(inputs))(target)(f), {
             constants: { sizeX: joinSize[0], sizeY: joinSize[1] },
             output: size

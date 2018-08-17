@@ -40,7 +40,7 @@ const anonymous2named = (f) => {
     return f;
 };
 
-const  convertCanvasToImage = (canvas) => {
+const convertCanvasToImage = (canvas) => {
     let image = new Image();
     image.src = canvas.toDataURL("image/png");
     return image;
@@ -57,6 +57,8 @@ const combine = (a,...fs) => {
     if(fs.length > 0) return (...c) => a(combine(...fs)(...c));
     else return a
 };
+
+
 
 const constf = a => () => a;
 
@@ -110,18 +112,7 @@ const promiseKernel = gpu => copyToImage => kernel => (...params) => new Promise
     } else reject();
 });
 
-<<<<<<< HEAD
-const promiseKernels = gpu => kernels => kernels.map(
-    kernel => combine(
-        promise=>promise.then(convertCanvasToImage(gpu._canvas)),
-        promiseKernel(kernel)
-    )
-);
-
-const combinePromiseKernels = (promise_kernels) => promise_kernels.reduce((r,promise_kernel)=>r.then(promise_kernel));
-=======
 const combinePromiseKernels = promise_kernels => promise_kernels.reduce((r,promise_kernel)=>r.then(promise_kernel));
->>>>>>> master
 
 // functions which map function to kernel
 
@@ -216,12 +207,11 @@ const bind = gpu =>
 const joinMapping = input => target => f => new Function('functor',
     `let beginX = this.thread.x*this.constants.sizeX;
      let beginY = this.thread.y*this.constants.sizeY;
-     let input = functor[beginY][beginX];
      let first_input = functor[beginX][beginY];
      let N = 0,R = 0,G = 0,B = 0,A = 0;
      for(let y=0;y<this.constants.sizeY;y++)
      for(let x=0;x<this.constants.sizeX;x++){
-        input = functor[beginY+y][beginX+x];
+        let input = functor[beginY+y][beginX+x];
         ${accConvert(target)
     ([inputConvert(input === TYPE_NUMBER)('input')])
     ((target,inputs) => `${f.name}(${target},${inputs},x,y)`)}
@@ -233,8 +223,7 @@ const joinMapping = input => target => f => new Function('functor',
 const join = gpu =>
     joinSize => f => inputs => target => {
         let size = inputMinSize(inputs);
-        modifyVector(size)(divInt(joinSize)(size));
-
+        modifyVector(size)(divInt(size)(joinSize));
         return gpu.createKernel(joinMapping(...inputType(inputs))(target)(f), {
             constants: { sizeX: joinSize[0], sizeY: joinSize[1] },
             output: size
@@ -243,8 +232,6 @@ const join = gpu =>
             .setOutputToTexture(true)
             .setGraphical(!target.isNumber);
     };
-
-// todo joinmapping/join
 
 const convoluteMapping = aIsNumber => isNumber => new Function('a', 'b',
     `let beginX = this.thread.x * this.constants.step;
@@ -386,7 +373,7 @@ class ContainerFunction {
                     (this.rtType === TYPE_PIXEL && copyToImage)
                     (kernelf)
                     (param, ...this.params, ...params)
-            )
+            );
         else
             return (...params) => 
                 promiseKernel(gpu)
@@ -423,18 +410,11 @@ class Container {
         this.functions.push(curry_f);
         return this;
     }
-<<<<<<< HEAD
 
     join(f, target, joinSize = [1, 1]){
-        f = combine(anonymous2named,arrow2anonymous)(f);
-        let l = f.length;
-        f = join(this.gpu)(joinSize)(f);
-        let curry_f = new CurryFunction(f, l, target);
+        f = combine(join(this.gpu)(joinSize),anonymous2named,arrow2anonymous)(f);
+        let curry_f = new CurryFunction(f, target);
         this.functions.push(curry_f);
-=======
-    
-    join(f, target){
->>>>>>> master
         return this;
     }
     
@@ -512,14 +492,9 @@ class Container {
         if(result.length === 0)
             prevs = promiseKernel(this.gpu)(false)(restf)();
         else {
-<<<<<<< HEAD
-            prevs = combine(combinePromiseKernels, promiseKernels(this.gpu))(result);
-            console.log(prevs);
-=======
             result = result.map(promiseKernel(this.gpu)(true));
             result[0] = result[0]();
             prevs = combinePromiseKernels(result);
->>>>>>> master
             prevs = prevs.then(restf);
         }
         
@@ -528,10 +503,6 @@ class Container {
 
     draw(){
         return this.get() // get container function
-<<<<<<< HEAD
-                   .get() // get kernel function
-                       ();// call the function
-=======
                    .get(this.gpu,false) // get kernel function
                        ();// call the function
     }
@@ -541,7 +512,6 @@ class Container {
                    .get(this.gpu,false)
                        ()
                     .then(texture => texture.toArray(this.gpu))
->>>>>>> master
     }
 }
 

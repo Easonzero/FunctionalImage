@@ -6,6 +6,7 @@ import { CurryFunction, ContainerFunction, Param } from './function'
 import { combine, constf } from './superfunction'
 import { arrow2anonymous, anonymous2named, isFunction } from './utils'
 import { front, last, head } from "./list";
+import { TYPE_NUMBER, TYPE_PIXEL } from "./const";
 
 class Container {
     constructor(gpu, data, target){
@@ -37,10 +38,8 @@ class Container {
     }
 
     join(f, target, joinSize = [1, 1]){
-        f = combine(anonymous2named,arrow2anonymous)(f);
-        let l = f.length;
-        f = join(this.gpu)(joinSize)(f);
-        let curry_f = new CurryFunction(f, l, target);
+        f = combine(join(this.gpu)(joinSize),anonymous2named,arrow2anonymous)(f);
+        let curry_f = new CurryFunction(f, target);
         this.functions.push(curry_f);
         return this;
     }
