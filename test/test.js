@@ -15,9 +15,8 @@ for(let i=0;i<219;i++){
 
 image.src = './headpic.jpg';
 image.onload = () => {
-    pure(x=>y=>x*y,'RGB')
-        .ap(data)
-        .ap(image)
-        .run()
-        .then(console.log)
+    pure(data)
+        .join(r=>c=>x=>y=>0,'RGB')
+        .fmap(x=>1,'A')
+        .run();
 };

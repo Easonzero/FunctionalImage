@@ -1,9 +1,12 @@
-import {fmap, bind, application, convolute, promiseKernels, combinePromiseKernels, promiseKernel} from './kernel'
-import {TYPE_NUMBER,TYPE_PIXEL} from './const'
+import {
+    fmap, bind, join, application, convolute,
+    promiseKernels, combinePromiseKernels, promiseKernel
+} from './kernel'
+import { TYPE_NUMBER,TYPE_PIXEL } from './const'
 import { CurryFunction, ContainerFunction, Param } from './function'
 import { combine, constf } from './superfunction'
 import { arrow2anonymous, anonymous2named, isFunction } from './utils'
-import {front, last, head} from "./list";
+import { front, last, head } from "./list";
 
 class Container {
     constructor(gpu, data, target){
@@ -40,8 +43,13 @@ class Container {
         this.functions.push(curry_f);
         return this;
     }
-    // todo join (act is fold)
-    join(f, target){
+
+    join(f, target, joinSize = [1, 1]){
+        f = combine(anonymous2named,arrow2anonymous)(f);
+        let l = f.length;
+        f = join(this.gpu)(joinSize)(f);
+        let curry_f = new CurryFunction(f, l, target);
+        this.functions.push(curry_f);
         return this;
     }
     // support container_function
@@ -91,7 +99,7 @@ class Container {
                 tmp.push(prevf);
             }else if(type === TYPE_PIXEL){
                 tmp.push(prevf);
-                result.push(combine(tmp.reverse()));
+                result.push(combine(...tmp.reverse()));
                 tmp.length = 0;
             }
         }
@@ -99,7 +107,8 @@ class Container {
         if(result.length === 0)
             prevs = promiseKernel(restf)([]);
         else {
-            prevs = combinePromiseKernels(promiseKernels(this.gpu)(result));
+            prevs = combine(combinePromiseKernels, promiseKernels(this.gpu))(result);
+            console.log(prevs)
             prevs = prevs.then(restf);
         }
 

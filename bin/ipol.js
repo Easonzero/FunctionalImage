@@ -80,6 +80,8 @@
 	        return a.map(e=>e*b);
 	};
 
+
+
 	const add = a => b => {
 	    if(!a instanceof Array)
 	        [b,a] = [a,b];
@@ -93,8 +95,11 @@
 	const divInt = a => b => {
 	    if(!a instanceof Array)
 	        return parseInt(a/b);
-	    
-	    return a.map(x=>x/b);
+
+	    if(b instanceof Array)
+	        return a.map((e,i)=>parseInt(e/b[i]));
+	    else if(typeof b === 'number')
+	        return a.map(x=>parseInt(x/b));
 	};
 
 	const TYPE_NUMBER = 0;
@@ -118,7 +123,7 @@
 	    )
 	);
 
-	const combinePromiseKernels = (...promise_kernels) => promise_kernels.reduce((r,promise_kernel)=>r.then(promise_kernel));
+	const combinePromiseKernels = (promise_kernels) => promise_kernels.reduce((r,promise_kernel)=>r.then(promise_kernel));
 
 	// functions which map function to kernel
 
@@ -126,6 +131,17 @@
 	    target.isNumber ?
 	        `return ${f(inputs.map(call()))}` : `this.color(${target.colorDist.map(
             (x, i) => x ? `${f(inputs.map(call(i)))}` : inputs[0](i))})`;
+
+	const accConvert = target => inputs => f =>
+	    target.isNumber ?
+	        `N = ${f(inputs.map(call()))}` :
+	        target.colorDist.map((x,i) => x ? TARGET_BASE[i+1] : x)
+	            .filter(x => x).map(x => `${x} = ${f(x,inputs.map(call(TARGET_BASE.indexOf(x)-1)))}`).join(';');
+
+	const targetAccConvert = target => inputs =>
+	    target.isNumber ?
+	        `return N` : `this.color(${target.colorDist.map(
+        (x,i) => x ? TARGET_BASE[i+1] : inputs[0](i))})`;
 
 	const inputConvert = isNumber => inputName => useri =>
 	    isNumber ? inputName : isUndefined(useri) ? [0, 1, 2, 3].map(i => `${inputName}[${i}]`) : `${inputName}[${useri}]`;
@@ -199,6 +215,37 @@
 	            .setOutputToTexture(true)
 	            .setGraphical(!target.isNumber);
 	    };
+	const joinMapping = input => target => f => new Function('functor',
+	    `let beginX = this.thread.x*this.constants.sizeX;
+     let beginY = this.thread.y*this.constants.sizeY;
+     let input = functor[beginY][beginX];
+     let first_input = functor[beginX][beginY];
+     let N = 0,R = 0,G = 0,B = 0,A = 0;
+     for(let y=0;y<this.constants.sizeY;y++)
+     for(let x=0;x<this.constants.sizeX;x++){
+        input = functor[beginY+y][beginX+x];
+        ${accConvert(target)
+    ([inputConvert(input === TYPE_NUMBER)('input')])
+    ((target,inputs) => `${f.name}(${target},${inputs},x,y)`)}
+     }
+     ${targetAccConvert(target)([inputConvert(input === TYPE_NUMBER)('first_input')])}
+    `
+	);
+
+	const join = gpu =>
+	    joinSize => f => inputs => target => {
+	        let size = inputMinSize(inputs);
+	        modifyVector(size)(divInt(joinSize)(size));
+
+	        return gpu.createKernel(joinMapping(...inputType(inputs))(target)(f), {
+	            constants: { sizeX: joinSize[0], sizeY: joinSize[1] },
+	            output: size
+	        })
+	            .setFunctions([f])
+	            .setOutputToTexture(true)
+	            .setGraphical(!target.isNumber);
+	    };
+
 	const convoluteMapping = aIsNumber => isNumber => new Function('a', 'b',
 	    `let beginX = this.thread.x * this.constants.step;
      let beginY = this.thread.y * this.constants.step;
@@ -387,8 +434,13 @@
 	        this.functions.push(curry_f);
 	        return this;
 	    }
-	    // todo join (act is fold)
-	    join(f, target){
+
+	    join(f, target, joinSize = [1, 1]){
+	        f = combine(anonymous2named,arrow2anonymous)(f);
+	        let l = f.length;
+	        f = join(this.gpu)(joinSize)(f);
+	        let curry_f = new CurryFunction(f, l, target);
+	        this.functions.push(curry_f);
 	        return this;
 	    }
 	    // support container_function
@@ -438,7 +490,7 @@
 	                tmp.push(prevf);
 	            }else if(type === TYPE_PIXEL){
 	                tmp.push(prevf);
-	                result.push(combine(tmp.reverse()));
+	                result.push(combine(...tmp.reverse()));
 	                tmp.length = 0;
 	            }
 	        }
@@ -446,7 +498,8 @@
 	        if(result.length === 0)
 	            prevs = promiseKernel(restf)([]);
 	        else {
-	            prevs = combinePromiseKernels(promiseKernels(this.gpu)(result));
+	            prevs = combine(combinePromiseKernels, promiseKernels(this.gpu))(result);
+	            console.log(prevs);
 	            prevs = prevs.then(restf);
 	        }
 
