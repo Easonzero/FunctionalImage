@@ -13,9 +13,9 @@ for(let i=0;i<219;i++){
     data.push(dataTmp);
 }
 
-image.src = './headpic.jpg';
+image.src = './test.jpeg';
 image.onload = () => {
     pure(image)
-        .join(r=>c=>x=>y=>r*(y*2+x)/(y*2+x+1)+c/(y*2+x+1),'RGBA',[2, 2])
+        .join(r=>c=>x=>y=>r*(y*2+x)/(y*2+x+1)+c/(y*2+x+1),'RGB',[30, 30])
         .draw();
 };
