@@ -45,8 +45,7 @@ fmap是一个将单个元素映射为单个元素的函数.
 pure(image)
     .fmap(r=>g=>b=>a=>r,'N')
     .fmap(a=>1,'A')
-    .run()
-    .then(console.log)
+    .draw()
 ```
 ![fmap](./image/fmap.png)
 
@@ -58,8 +57,7 @@ bind是一个将单个元素映射为二维数组的函数
 pure(image)
     .fmap(a=>a*a,'RGB')
     .bind(a=>x=>y=>a,'RGB',[2,2])
-    .run()
-    .then(console.log)
+    .draw()
 ```
 ![bind](./image/bind.png)
 
@@ -71,8 +69,7 @@ ap是一个将多个元素映射为单个元素的函数
 pure(a=>b=>a*b,'RGB')
     .ap(image)
     .ap(data)//data是一个与图片等尺寸的float二维数组
-    .run()
-    .then(console.log)
+    .draw()
 ```
 ![application](./image/application.png)
 
@@ -88,11 +85,17 @@ pure(image)
     [0,  0,0,0,0.167,0],
     [0,  0,0,0,0,0.167]
 ])
-.run()
-.then(console.log)
+.draw()
 ```
 
 ![filter](./image/filter.png)
 
-5. join...(开发中!)
+5. join
+
+```js
+pure(image)
+    .join(r=>c=>x=>y=>r*(y*2+x)/(y*2+x+1)+c/(y*2+x+1),'RGB',[30, 30])
+    .bind(c=>x=>y=>c,'RGB',[15, 15])
+    .draw();
+```
 
