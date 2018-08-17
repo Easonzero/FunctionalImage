@@ -1,5 +1,5 @@
 export const combine = (a,...fs) => {
-    if(fs.length > 0) return c => a(combine(...fs)(c));
+    if(fs.length > 0) return (...c) => a(combine(...fs)(...c));
     else return a
 };
 

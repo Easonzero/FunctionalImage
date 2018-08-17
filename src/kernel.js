@@ -1,7 +1,11 @@
 import {call, combine} from './superfunction';
 import {add, multi, divInt, div} from './math';
 import {convertCanvasToImage, genParamsName, isUndefined, modifyVector} from "./utils";
+<<<<<<< HEAD
 import {TYPE_PIXEL,TYPE_NUMBER,TARGET_BASE} from "./const";
+=======
+import {TYPE_NUMBER} from "./const";
+>>>>>>> master
 
 // functions which operation kernels
 
@@ -9,22 +13,17 @@ const combineKernel = gpu => (...kernels) => (
     gpu.combineKernels(...kernels, combine(...kernels.reverse()))
 );
 
-const promiseKernel = kernel => params => new Promise((resolve, reject) => {
+const promiseKernel = gpu => copyToImage => kernel => (...params) => new Promise((resolve, reject) => {
     let result = -1;
     result = kernel(...params);
     if (result !== -1) {
+        if (copyToImage)
+            result = convertCanvasToImage(gpu._canvas)
         resolve(result);
     } else reject()
 });
 
-const promiseKernels = gpu => kernels => kernels.map(
-    kernel => combine(
-        promise=>promise.then(convertCanvasToImage(gpu._canvas)),
-        promiseKernel(kernel)
-    )
-);
-
-const combinePromiseKernels = (promise_kernels) => promise_kernels.reduce((r,promise_kernel)=>r.then(promise_kernel));
+const combinePromiseKernels = promise_kernels => promise_kernels.reduce((r,promise_kernel)=>r.then(promise_kernel));
 
 // functions which map function to kernel
 
@@ -159,22 +158,22 @@ const convoluteMapping = aIsNumber => isNumber => new Function('a', 'b',
      sum = ${isNumber ? '0' : 'vec4(0,0,0,0)'}
      for(let y=0;y<this.constants.sizeY;y++)
      for(let x=0;x<this.constants.sizeX;x++)
-        sum += b[beginY+y][beginX+x] *
-            a[y][x];
+        sum += b[y][x] *
+            a[beginY+y][beginX+x];
      ${isNumber? 'return sum;' :
         'this.color(sum[0],sum[1],sum[2],1)'}`
 );
 
 const convolute = gpu =>
     step => inputs => target =>
-        gpu.createKernel(convoluteMapping(inputs[0].type === TYPE_NUMBER)(target.isNumber), {
-            constants: { sizeX: inputs[0].size[0], sizeY: inputs[0].size[1], step: step },
-            output: add(divInt(add(inputs[1].size)(multi(inputs[0].size)(-1)))(step))(-1)
+        gpu.createKernel(convoluteMapping(inputs[1].type === TYPE_NUMBER)(target.isNumber), {
+            constants: { sizeX: inputs[1].size[0], sizeY: inputs[1].size[1], step: step },
+            output: add(divInt(add(inputs[0].size)(multi(inputs[1].size)(-1)))(step))(-1)
         })
             .setOutputToTexture(true)
             .setGraphical(!target.isNumber);
 
 export {
-    combineKernel, combinePromiseKernels, promiseKernel, promiseKernels,
+    combineKernel, combinePromiseKernels, promiseKernel,
     fmap, application, bind, join, convolute
 }

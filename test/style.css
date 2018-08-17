@@ -1,0 +1,23 @@
+* {
+    overflow: hidden;
+    position: relative;
+    height: 100%;
+    width: 100%;
+    margin: 0px;
+}
+
+.container {
+    overflow: hidden;
+    position: absolute;
+    width: auto;
+    height: auto;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%,-50%);
+}
+
+#image, #canvas {
+    width: auto;
+    height: auto;
+    display: inline-block;
+}

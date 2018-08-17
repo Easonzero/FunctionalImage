@@ -15,8 +15,14 @@ for(let i=0;i<219;i++){
 
 image.src = './headpic.jpg';
 image.onload = () => {
-    pure(data)
-        .join(r=>c=>x=>y=>0,'RGB')
+    // pure(data)
+    //     .join(r=>c=>x=>y=>0,'RGB')
+    //     .fmap(x=>1,'A')
+    //     .run();
+    pure(image)
+        .fmap(r=>g=>b=>a=>r,'N')
+        .fmap(x=>x-0.3,'G')
+        .fmap(x=>1,'RB')
         .fmap(x=>1,'A')
-        .run();
+        .draw();
 };
