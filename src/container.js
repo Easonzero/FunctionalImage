@@ -1,9 +1,12 @@
-import { fmap, bind, application, convolute, combinePromiseKernels, promiseKernel } from './kernel'
-import { TYPE_NUMBER, TYPE_PIXEL } from './const'
+import {
+    fmap, bind, join, application, convolute,
+    combinePromiseKernels, promiseKernel
+} from './kernel'
 import { CurryFunction, ContainerFunction, Param } from './function'
 import { combine, constf } from './superfunction'
 import { arrow2anonymous, anonymous2named, isFunction } from './utils'
 import { front, last, head } from "./list";
+import { TYPE_NUMBER, TYPE_PIXEL } from "./const";
 
 class Container {
     constructor(gpu, data, target){
@@ -33,8 +36,11 @@ class Container {
         this.functions.push(curry_f);
         return this;
     }
-    
-    join(f, target){
+
+    join(f, target, joinSize = [1, 1]){
+        f = combine(join(this.gpu)(joinSize),anonymous2named,arrow2anonymous)(f);
+        let curry_f = new CurryFunction(f, target);
+        this.functions.push(curry_f);
         return this;
     }
     

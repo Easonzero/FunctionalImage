@@ -40,7 +40,7 @@ const anonymous2named = (f) => {
     return f;
 };
 
-const  convertCanvasToImage = (canvas) => {
+const convertCanvasToImage = (canvas) => {
     let image = new Image();
     image.src = canvas.toDataURL("image/png");
     return image;
@@ -58,6 +58,8 @@ const combine = (a,...fs) => {
     else return a
 };
 
+
+
 const constf = a => () => a;
 
 const call = (...params) => f => f(...params);
@@ -72,6 +74,8 @@ const multi = a => b => {
         return a.map(e=>e*b);
 };
 
+
+
 const add = a => b => {
     if(!a instanceof Array)
         [b,a] = [a,b];
@@ -85,8 +89,11 @@ const add = a => b => {
 const divInt = a => b => {
     if(!a instanceof Array)
         return parseInt(a/b);
-    
-    return a.map(x=>x/b);
+
+    if(b instanceof Array)
+        return a.map((e,i)=>parseInt(e/b[i]));
+    else if(typeof b === 'number')
+        return a.map(x=>parseInt(x/b));
 };
 
 const TYPE_NUMBER = 0;
@@ -113,6 +120,18 @@ const targetConvert = target => inputs => f =>
     target.isNumber ?
         `return ${f(inputs.map(call()))}` : `this.color(${target.colorDist.map(
             (x, i) => x ? `${f(inputs.map(call(i)))}` : inputs[0](i))})`;
+
+const accConvert = target => inputs => f =>
+    target.isNumber ?
+        `N = ${f(inputs.map(call()))}` :
+        target.colorDist.map((x,i) => x ? TARGET_BASE[i+1] : x)
+            .filter(x => x).map(x => `${x} = ${f(x,inputs.map(call(TARGET_BASE.indexOf(x)-1)))}`).join(';');
+
+const targetAccConvert = target => inputs =>
+    target.isNumber ?
+        `return N` : `this.color(${target.colorDist.map(
+        (x,i) => x ? TARGET_BASE[i+1] : inputs[0](i))})`;
+
 const inputConvert = isNumber => inputName => useri =>
     isNumber ? inputName : isUndefined(useri) ? [0, 1, 2, 3].map(i => `${inputName}[${i}]`) : `${inputName}[${useri}]`;
 
@@ -185,8 +204,34 @@ const bind = gpu =>
             .setOutputToTexture(true)
             .setGraphical(!target.isNumber);
     };
+const joinMapping = input => target => f => new Function('functor',
+    `let beginX = this.thread.x*this.constants.sizeX;
+     let beginY = this.thread.y*this.constants.sizeY;
+     let first_input = functor[beginX][beginY];
+     let N = 0,R = 0,G = 0,B = 0,A = 0;
+     for(let y=0;y<this.constants.sizeY;y++)
+     for(let x=0;x<this.constants.sizeX;x++){
+        let input = functor[beginY+y][beginX+x];
+        ${accConvert(target)
+    ([inputConvert(input === TYPE_NUMBER)('input')])
+    ((target,inputs) => `${f.name}(${target},${inputs},x,y)`)}
+     }
+     ${targetAccConvert(target)([inputConvert(input === TYPE_NUMBER)('first_input')])}
+    `
+);
 
-// todo joinmapping/join
+const join = gpu =>
+    joinSize => f => inputs => target => {
+        let size = inputMinSize(inputs);
+        modifyVector(size)(divInt(size)(joinSize));
+        return gpu.createKernel(joinMapping(...inputType(inputs))(target)(f), {
+            constants: { sizeX: joinSize[0], sizeY: joinSize[1] },
+            output: size
+        })
+            .setFunctions([f])
+            .setOutputToTexture(true)
+            .setGraphical(!target.isNumber);
+    };
 
 const convoluteMapping = aIsNumber => isNumber => new Function('a', 'b',
     `let beginX = this.thread.x * this.constants.step;
@@ -328,7 +373,7 @@ class ContainerFunction {
                     (this.rtType === TYPE_PIXEL && copyToImage)
                     (kernelf)
                     (param, ...this.params, ...params)
-            )
+            );
         else
             return (...params) => 
                 promiseKernel(gpu)
@@ -365,8 +410,11 @@ class Container {
         this.functions.push(curry_f);
         return this;
     }
-    
-    join(f, target){
+
+    join(f, target, joinSize = [1, 1]){
+        f = combine(join(this.gpu)(joinSize),anonymous2named,arrow2anonymous)(f);
+        let curry_f = new CurryFunction(f, target);
+        this.functions.push(curry_f);
         return this;
     }
     
