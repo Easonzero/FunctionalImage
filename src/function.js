@@ -1,6 +1,5 @@
 import {TYPE_NUMBER, TYPE_PIXEL, TARGET_BASE, TYPE_FUNCTION} from './const'
-import { is2DArray, isUndefined, convertCanvasToImage } from "./utils";
-import {call} from "./superfunction";
+import { is2DArray, isUndefined } from "./utils";
 import {promiseKernel} from "./kernel";
 import { loopShift } from './list';
 
@@ -123,7 +122,7 @@ class ContainerFunction {
                     (this.rtType === TYPE_PIXEL && copyToImage)
                     (kernelf)
                     (param, ...this.params, ...params)
-            )
+            );
         else
             return (...params) => 
                 promiseKernel(gpu)

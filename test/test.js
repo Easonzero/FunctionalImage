@@ -13,12 +13,9 @@ for(let i=0;i<219;i++){
     data.push(dataTmp);
 }
 
-image.src = './headpic.jpg';
+image.src = './test.jpeg';
 image.onload = () => {
     pure(image)
-        .fmap(r=>g=>b=>a=>r,'N')
-        .fmap(x=>x-0.3,'G')
-        .fmap(x=>1,'RB')
-        .fmap(x=>1,'A')
+        .join(r=>c=>x=>y=>r*(y*2+x)/(y*2+x+1)+c/(y*2+x+1),'RGB',[30, 30])
         .draw();
 };

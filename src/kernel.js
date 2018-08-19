@@ -1,7 +1,7 @@
 import {call, combine} from './superfunction';
-import {add, multi, divInt} from './math';
+import {add, multi, divInt, div} from './math';
 import {convertCanvasToImage, genParamsName, isUndefined, modifyVector} from "./utils";
-import {TYPE_NUMBER} from "./const";
+import {TYPE_PIXEL,TYPE_NUMBER,TARGET_BASE} from "./const";
 
 // functions which operation kernels
 
@@ -27,6 +27,22 @@ const targetConvert = target => inputs => f =>
     target.isNumber ?
         `return ${f(inputs.map(call()))}` : `this.color(${target.colorDist.map(
             (x, i) => x ? `${f(inputs.map(call(i)))}` : inputs[0](i))})`;
+
+const targetNameConvert = target =>
+    target.isNumber ? 'N' : target.colorDist.map((x,i) => x ? TARGET_BASE[i+1] : x)
+        .filter(x => x).join(',');
+
+const accConvert = target => inputs => f =>
+    target.isNumber ?
+        `N = ${f(inputs.map(call()))}` :
+        target.colorDist.map((x,i) => x ? TARGET_BASE[i+1] : x)
+            .filter(x => x).map(x => `${x} = ${f(x,inputs.map(call(TARGET_BASE.indexOf(x)-1)))}`).join(';');
+
+const targetAccConvert = target => inputs =>
+    target.isNumber ?
+        `return N` : `this.color(${target.colorDist.map(
+        (x,i) => x ? TARGET_BASE[i+1] : inputs[0](i))})`;
+
 const inputConvert = isNumber => inputName => useri =>
     isNumber ? inputName : isUndefined(useri) ? [0, 1, 2, 3].map(i => `${inputName}[${i}]`) : `${inputName}[${useri}]`;
 
@@ -100,8 +116,34 @@ const bind = gpu =>
             .setOutputToTexture(true)
             .setGraphical(!target.isNumber);
     };
+const joinMapping = input => target => f => new Function('functor',
+    `let beginX = this.thread.x*this.constants.sizeX;
+     let beginY = this.thread.y*this.constants.sizeY;
+     let first_input = functor[beginX][beginY];
+     let N = 0,R = 0,G = 0,B = 0,A = 0;
+     for(let y=0;y<this.constants.sizeY;y++)
+     for(let x=0;x<this.constants.sizeX;x++){
+        let input = functor[beginY+y][beginX+x];
+        ${accConvert(target)
+    ([inputConvert(input === TYPE_NUMBER)('input')])
+    ((target,inputs) => `${f.name}(${target},${inputs},x,y)`)}
+     }
+     ${targetAccConvert(target)([inputConvert(input === TYPE_NUMBER)('first_input')])}
+    `
+);
 
-// todo joinmapping/join
+const join = gpu =>
+    joinSize => f => inputs => target => {
+        let size = inputMinSize(inputs);
+        modifyVector(size)(divInt(size)(joinSize));
+        return gpu.createKernel(joinMapping(...inputType(inputs))(target)(f), {
+            constants: { sizeX: joinSize[0], sizeY: joinSize[1] },
+            output: size
+        })
+            .setFunctions([f])
+            .setOutputToTexture(true)
+            .setGraphical(!target.isNumber);
+    };
 
 const convoluteMapping = aIsNumber => isNumber => new Function('a', 'b',
     `let beginX = this.thread.x * this.constants.step;
@@ -125,4 +167,7 @@ const convolute = gpu =>
             .setOutputToTexture(true)
             .setGraphical(!target.isNumber);
 
-export { combineKernel, combinePromiseKernels, promiseKernel, fmap, application, bind, convolute}
+export {
+    combineKernel, combinePromiseKernels, promiseKernel,
+    fmap, application, bind, join, convolute
+}
