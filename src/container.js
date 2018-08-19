@@ -6,45 +6,45 @@ import { CurryFunction, ContainerFunction, Param } from './function'
 import { combine, constf } from './superfunction'
 import { arrow2anonymous, anonymous2named, isFunction } from './utils'
 import { front, last, head } from "./list";
-import { TYPE_NUMBER, TYPE_PIXEL } from "./const";
+import { TYPE_NUMBER, TYPE_PIXEL } from "./global";
 
 class Container {
-    constructor(gpu, data, target){
+    constructor(gpu, data, target, constants){
         this.gpu = gpu;
         this.functions = [];
         if(isFunction(data)){
             let f = combine(application(gpu),anonymous2named,arrow2anonymous)(data);
-            let curry_f = new CurryFunction(f, target);
+            let curry_f = new CurryFunction(f, target, constants);
             this.functions.push(curry_f);
         } else {
-            let f = input=>target=>constf(data);
+            let f = input=>target=>constants=>constf(data);
             let curry_f = new CurryFunction(f, target);
             this.functions.push(curry_f);
         }
     }
 
-    fmap(f, target){
+    fmap(f, target, constants){
         f = combine(fmap(this.gpu),anonymous2named,arrow2anonymous)(f);
-        let curry_f = new CurryFunction(f, target);
+        let curry_f = new CurryFunction(f, target, constants);
         this.functions.push(curry_f);
         return this;
     }
 
-    bind(f, target, bindSize = [1, 1]){
+    bind(f, bindSize=[1, 1], target, constants){
         f = combine(bind(this.gpu)(bindSize),anonymous2named,arrow2anonymous)(f);
-        let curry_f = new CurryFunction(f, target);
+        let curry_f = new CurryFunction(f, target, constants);
         this.functions.push(curry_f);
         return this;
     }
 
-    join(f, target, joinSize = [1, 1]){
+    join(f, joinSize = [1, 1], target, constants){
         f = combine(join(this.gpu)(joinSize),anonymous2named,arrow2anonymous)(f);
-        let curry_f = new CurryFunction(f, target);
+        let curry_f = new CurryFunction(f, target, constants);
         this.functions.push(curry_f);
         return this;
     }
     
-    convolute(data,step=1){
+    convolute(data, step=1){
         let f = convolute(this.gpu)(step);
 
         let type = undefined;
@@ -87,7 +87,7 @@ class Container {
 
     combine(containerf){
         if(!(containerf instanceof ContainerFunction))
-            throw ('Is input the Container.get()?');
+            throw ('[ERROR] Is input the Container.get()?');
 
         this.functions.push(containerf);
 

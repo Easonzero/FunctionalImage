@@ -2,17 +2,17 @@
     position: relative;
     height: 100%;
     width: 100%;
-    margin: 0px;
 }
 
 .container {
     overflow: hidden;
     position: absolute;
-    width: auto;
+    width: 100%;
     height: auto;
-    left: 50%;
     top: 50%;
-    transform: translate(-50%,-50%);
+    transform: translateY(-50%);
+    display: flex;
+    justify-content: center;
 }
 
 #image, #canvas {

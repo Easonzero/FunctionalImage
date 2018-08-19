@@ -1,7 +1,7 @@
 import {call, combine} from './superfunction';
 import {add, multi, divInt, div} from './math';
 import {convertCanvasToImage, genParamsName, isUndefined, modifyVector} from "./utils";
-import {TYPE_PIXEL,TYPE_NUMBER,TARGET_BASE} from "./const";
+import {TYPE_PIXEL,TYPE_NUMBER,TARGET_BASE} from "./global";
 
 // functions which operation kernels
 
@@ -13,8 +13,10 @@ const promiseKernel = gpu => copyToImage => kernel => (...params) => new Promise
     let result = -1;
     result = kernel(...params);
     if (result !== -1) {
-        if (copyToImage)
-            result = convertCanvasToImage(gpu._canvas)
+        if (copyToImage) {
+            result = convertCanvasToImage(gpu._canvas);
+            gpu._webGl.clear(gpu._webGl.COLOR_BUFFER_BIT);
+        }
         resolve(result);
     } else reject()
 });
@@ -22,6 +24,12 @@ const promiseKernel = gpu => copyToImage => kernel => (...params) => new Promise
 const combinePromiseKernels = promise_kernels => promise_kernels.reduce((r,promise_kernel)=>r.then(promise_kernel));
 
 // functions which map function to kernel
+
+const targetRemapping = (target) => {
+    target = target.toUpperCase();
+    let [isNumber, ...colorDist] = TARGET_BASE.map(c => target.includes(c));
+    return { isNumber, colorDist };
+};
 
 const targetConvert = target => inputs => f =>
     target.isNumber ?
@@ -63,8 +71,10 @@ const mapMapping = input => target => f => new Function('functor',
 );
 
 const fmap = gpu =>
-    f => inputs => target =>
-        gpu.createKernel(mapMapping(...inputType(inputs))(target)(f))
+    f => inputs => target => constants =>
+        gpu.createKernel(mapMapping(...inputType(inputs))(target)(f),
+            {constants}
+        )
             .setOutput(inputMinSize(inputs))
             .setFunctions([f])
             .setOutputToTexture(true)
@@ -82,9 +92,10 @@ const apMapping = inputs => target => f => {
 };
 
 const application = gpu => 
-    f => inputs => target =>
+    f => inputs => target => constants =>
         gpu.createKernel(
-            apMapping(inputType(inputs))(target)(f)
+            apMapping(inputType(inputs))(target)(f),
+            {constants}
         )
             .setOutput(inputMinSize(inputs))
             .setFunctions([f])
@@ -92,10 +103,11 @@ const application = gpu =>
             .setGraphical(!target.isNumber);
 
 const bindMapping = input => target => f => new Function('functor',
-    `let x = floor(this.thread.x/this.constants.sizeX);
-     let y = floor(this.thread.y/this.constants.sizeY);
-     let offsetX = this.thread.x%this.constants.sizeX;
-     let offsetY = this.thread.y%this.constants.sizeY;
+    `
+     let x = floor(this.thread.x/this.constants.sizeX_);
+     let y = floor(this.thread.y/this.constants.sizeY_);
+     let offsetX = this.thread.x%this.constants.sizeX_;
+     let offsetY = this.thread.y%this.constants.sizeY_;
      let input = functor[y][x];
     ${targetConvert(target)
         ([inputConvert(input === TYPE_NUMBER)('input')])
@@ -104,25 +116,26 @@ const bindMapping = input => target => f => new Function('functor',
 );
 
 const bind = gpu => 
-    bindSize => f => inputs => target => {
+    bindSize => f => inputs => target =>  constants => {
         let size = inputMinSize(inputs);
         modifyVector(size)(multi(bindSize)(size));
 
         return gpu.createKernel(bindMapping(...inputType(inputs))(target)(f), {
-            constants: { sizeX: bindSize[0], sizeY: bindSize[1] },
+            constants: { sizeX_: bindSize[0], sizeY_: bindSize[1] , ...constants},
             output: size
         })
             .setFunctions([f])
             .setOutputToTexture(true)
             .setGraphical(!target.isNumber);
     };
+
 const joinMapping = input => target => f => new Function('functor',
-    `let beginX = this.thread.x*this.constants.sizeX;
-     let beginY = this.thread.y*this.constants.sizeY;
+    `let beginX = this.thread.x*this.constants.sizeX_;
+     let beginY = this.thread.y*this.constants.sizeY_;
      let first_input = functor[beginX][beginY];
      let N = 0,R = 0,G = 0,B = 0,A = 0;
-     for(let y=0;y<this.constants.sizeY;y++)
-     for(let x=0;x<this.constants.sizeX;x++){
+     for(let y=0;y<this.constants.sizeY_;y++)
+     for(let x=0;x<this.constants.sizeX_;x++){
         let input = functor[beginY+y][beginX+x];
         ${accConvert(target)
     ([inputConvert(input === TYPE_NUMBER)('input')])
@@ -133,11 +146,11 @@ const joinMapping = input => target => f => new Function('functor',
 );
 
 const join = gpu =>
-    joinSize => f => inputs => target => {
+    joinSize => f => inputs => target =>  constants => {
         let size = inputMinSize(inputs);
         modifyVector(size)(divInt(size)(joinSize));
         return gpu.createKernel(joinMapping(...inputType(inputs))(target)(f), {
-            constants: { sizeX: joinSize[0], sizeY: joinSize[1] },
+            constants: { sizeX_: joinSize[0], sizeY_: joinSize[1], ...constants},
             output: size
         })
             .setFunctions([f])
@@ -146,12 +159,12 @@ const join = gpu =>
     };
 
 const convoluteMapping = aIsNumber => isNumber => new Function('a', 'b',
-    `let beginX = this.thread.x * this.constants.step;
-     let beginY = this.thread.y * this.constants.step;
+    `let beginX = this.thread.x * this.constants.step_;
+     let beginY = this.thread.y * this.constants.step_;
      let sum = ${aIsNumber?'b':'a'}[beginY][beginX];
      sum = ${isNumber ? '0' : 'vec4(0,0,0,0)'}
-     for(let y=0;y<this.constants.sizeY;y++)
-     for(let x=0;x<this.constants.sizeX;x++)
+     for(let y=0;y<this.constants.sizeY_;y++)
+     for(let x=0;x<this.constants.sizeX_;x++)
         sum += b[y][x] *
             a[beginY+y][beginX+x];
      ${isNumber? 'return sum;' :
@@ -159,15 +172,15 @@ const convoluteMapping = aIsNumber => isNumber => new Function('a', 'b',
 );
 
 const convolute = gpu =>
-    step => inputs => target =>
+    step => inputs => target =>  constants =>
         gpu.createKernel(convoluteMapping(inputs[1].type === TYPE_NUMBER)(target.isNumber), {
-            constants: { sizeX: inputs[1].size[0], sizeY: inputs[1].size[1], step: step },
+            constants: { sizeX_: inputs[1].size[0], sizeY_: inputs[1].size[1], step_: step},
             output: add(divInt(add(inputs[0].size)(multi(inputs[1].size)(-1)))(step))(-1)
         })
             .setOutputToTexture(true)
             .setGraphical(!target.isNumber);
 
 export {
-    combineKernel, combinePromiseKernels, promiseKernel,
+    targetRemapping, combineKernel, combinePromiseKernels, promiseKernel,
     fmap, application, bind, join, convolute
 }

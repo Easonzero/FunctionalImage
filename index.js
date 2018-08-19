@@ -1,6 +1,7 @@
 import GPU from 'gpu.js'
 import {is2DArray, isFunction, isUndefined} from "./src/utils";
 import {Container} from "./src/container";
+import {createDatabase} from "./src/global";
 
 const pure = (gpu) => (data,target) => {
     if(isFunction(data))
@@ -13,10 +14,10 @@ const pure = (gpu) => (data,target) => {
     }
 };
 
-window.$fip = (params) => {
+window.$fip = params => {
     const gpu = new GPU(params);
     return {
         pure:pure(gpu),
-        gpu:gpu
-    };
+        createDatabase:createDatabase(gpu)
+    }
 };

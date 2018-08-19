@@ -1,13 +1,7 @@
-import {TYPE_NUMBER, TYPE_PIXEL, TARGET_BASE, TYPE_FUNCTION} from './const'
+import {TYPE_NUMBER, TYPE_PIXEL, TARGET_BASE, TYPE_FUNCTION} from './global'
 import { is2DArray, isUndefined } from "./utils";
-import {promiseKernel} from "./kernel";
+import {promiseKernel, targetRemapping} from "./kernel";
 import { loopShift } from './list';
-
-const targetRemapping = (target) => {
-    target = target.toUpperCase();
-    let [isNumber, ...colorDist] = TARGET_BASE.map(c => target.includes(c));
-    return { isNumber, colorDist };
-};
 
 const _calParamLength = param => {
     switch (param.type) {
@@ -69,10 +63,11 @@ class Param {
 }
 
 class CurryFunction {
-    constructor(f, target){
+    constructor(f, target="RGB", constants={}){
         this.f = f;
         this.target = targetRemapping(target);
         this.params = [];
+        this.constants = constants;
     }
  
     apply(param){
@@ -88,8 +83,7 @@ class CurryFunction {
     // list(param) => kernel
     get(gpu){
         let kernel = params => 
-            this.f(loopShift([...this.params, ...params]).map(paramAttr))(this.target);
-
+            this.f(loopShift([...this.params, ...params]).map(paramAttr))(this.target)(this.constants);
         return (...params) => kernel(params)(...loopShift([...this.params, ...params]).map(paramValue))
     }
 }
