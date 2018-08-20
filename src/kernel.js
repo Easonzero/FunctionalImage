@@ -72,9 +72,8 @@ const mapMapping = input => target => f => new Function('functor',
 
 const fmap = gpu =>
     f => inputs => target => constants =>
-        gpu.createKernel(mapMapping(...inputType(inputs))(target)(f),
-            {constants}
-        )
+        gpu.createKernel(mapMapping(...inputType(inputs))(target)(f))
+            .setConstants({constants})
             .setOutput(inputMinSize(inputs))
             .setFunctions([f])
             .setOutputToTexture(true)
@@ -93,10 +92,8 @@ const apMapping = inputs => target => f => {
 
 const application = gpu => 
     f => inputs => target => constants =>
-        gpu.createKernel(
-            apMapping(inputType(inputs))(target)(f),
-            {constants}
-        )
+        gpu.createKernel(apMapping(inputType(inputs))(target)(f))
+            .setConstants({constants})
             .setOutput(inputMinSize(inputs))
             .setFunctions([f])
             .setOutputToTexture(true)
@@ -120,10 +117,9 @@ const bind = gpu =>
         let size = inputMinSize(inputs);
         modifyVector(size)(multi(bindSize)(size));
 
-        return gpu.createKernel(bindMapping(...inputType(inputs))(target)(f), {
-            constants: { sizeX_: bindSize[0], sizeY_: bindSize[1] , ...constants},
-            output: size
-        })
+        return gpu.createKernel(bindMapping(...inputType(inputs))(target)(f))
+            .setConstants({ sizeX_: bindSize[0], sizeY_: bindSize[1] , ...constants})
+            .setOutput(size)
             .setFunctions([f])
             .setOutputToTexture(true)
             .setGraphical(!target.isNumber);
@@ -149,10 +145,9 @@ const join = gpu =>
     joinSize => f => inputs => target =>  constants => {
         let size = inputMinSize(inputs);
         modifyVector(size)(divInt(size)(joinSize));
-        return gpu.createKernel(joinMapping(...inputType(inputs))(target)(f), {
-            constants: { sizeX_: joinSize[0], sizeY_: joinSize[1], ...constants},
-            output: size
-        })
+        return gpu.createKernel(joinMapping(...inputType(inputs))(target)(f))
+            .setOutput(size)
+            .setConstants({ sizeX_: joinSize[0], sizeY_: joinSize[1], ...constants})
             .setFunctions([f])
             .setOutputToTexture(true)
             .setGraphical(!target.isNumber);
@@ -173,10 +168,9 @@ const convoluteMapping = aIsNumber => isNumber => new Function('a', 'b',
 
 const convolute = gpu =>
     step => inputs => target =>  constants =>
-        gpu.createKernel(convoluteMapping(inputs[1].type === TYPE_NUMBER)(target.isNumber), {
-            constants: { sizeX_: inputs[1].size[0], sizeY_: inputs[1].size[1], step_: step},
-            output: add(divInt(add(inputs[0].size)(multi(inputs[1].size)(-1)))(step))(-1)
-        })
+        gpu.createKernel(convoluteMapping(inputs[1].type === TYPE_NUMBER)(target.isNumber))
+            .setConstants({ sizeX_: inputs[1].size[0], sizeY_: inputs[1].size[1], step_: step})
+            .setOutput(add(divInt(add(inputs[0].size)(multi(inputs[1].size)(-1)))(step))(-1))
             .setOutputToTexture(true)
             .setGraphical(!target.isNumber);
 

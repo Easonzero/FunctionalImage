@@ -368,7 +368,7 @@
 	        return function (inputs) {
 	            return function (target) {
 	                return function (constants) {
-	                    return gpu.createKernel(mapMapping.apply(undefined, toConsumableArray(inputType(inputs)))(target)(f), { constants: constants }).setOutput(inputMinSize(inputs)).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
+	                    return gpu.createKernel(mapMapping.apply(undefined, toConsumableArray(inputType(inputs)))(target)(f)).setConstants({ constants: constants }).setOutput(inputMinSize(inputs)).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
 	                };
 	            };
 	        };
@@ -395,7 +395,7 @@
 	        return function (inputs) {
 	            return function (target) {
 	                return function (constants) {
-	                    return gpu.createKernel(apMapping(inputType(inputs))(target)(f), { constants: constants }).setOutput(inputMinSize(inputs)).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
+	                    return gpu.createKernel(apMapping(inputType(inputs))(target)(f)).setConstants({ constants: constants }).setOutput(inputMinSize(inputs)).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
 	                };
 	            };
 	        };
@@ -421,10 +421,7 @@
 	                        var size = inputMinSize(inputs);
 	                        modifyVector(size)(multi(bindSize)(size));
 
-	                        return gpu.createKernel(bindMapping.apply(undefined, toConsumableArray(inputType(inputs)))(target)(f), {
-	                            constants: Object.assign({ sizeX_: bindSize[0], sizeY_: bindSize[1] }, constants),
-	                            output: size
-	                        }).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
+	                        return gpu.createKernel(bindMapping.apply(undefined, toConsumableArray(inputType(inputs)))(target)(f)).setConstants(Object.assign({ sizeX_: bindSize[0], sizeY_: bindSize[1] }, constants)).setOutput(size).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
 	                    };
 	                };
 	            };
@@ -450,10 +447,7 @@
 	                    return function (constants) {
 	                        var size = inputMinSize(inputs);
 	                        modifyVector(size)(divInt(size)(joinSize));
-	                        return gpu.createKernel(joinMapping.apply(undefined, toConsumableArray(inputType(inputs)))(target)(f), {
-	                            constants: Object.assign({ sizeX_: joinSize[0], sizeY_: joinSize[1] }, constants),
-	                            output: size
-	                        }).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
+	                        return gpu.createKernel(joinMapping.apply(undefined, toConsumableArray(inputType(inputs)))(target)(f)).setOutput(size).setConstants(Object.assign({ sizeX_: joinSize[0], sizeY_: joinSize[1] }, constants)).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
 	                    };
 	                };
 	            };
@@ -472,10 +466,7 @@
 	        return function (inputs) {
 	            return function (target) {
 	                return function (constants) {
-	                    return gpu.createKernel(convoluteMapping(inputs[1].type === TYPE_NUMBER)(target.isNumber), {
-	                        constants: { sizeX_: inputs[1].size[0], sizeY_: inputs[1].size[1], step_: step },
-	                        output: add(divInt(add(inputs[0].size)(multi(inputs[1].size)(-1)))(step))(-1)
-	                    }).setOutputToTexture(true).setGraphical(!target.isNumber);
+	                    return gpu.createKernel(convoluteMapping(inputs[1].type === TYPE_NUMBER)(target.isNumber)).setConstants({ sizeX_: inputs[1].size[0], sizeY_: inputs[1].size[1], step_: step }).setOutput(add(divInt(add(inputs[0].size)(multi(inputs[1].size)(-1)))(step))(-1)).setOutputToTexture(true).setGraphical(!target.isNumber);
 	                };
 	            };
 	        };
