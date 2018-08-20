@@ -2,7 +2,9 @@ export const isUndefined = a => typeof a === 'undefined';
 
 export const isFunction = a => typeof a === 'function';
 
-export const isArray = a => a instanceof Array;
+export const isArray = a => toString.apply(a) === "[object Array]";
+
+export const isObject = a => toString.apply(a) === "[object Object]";
 
 export const is2DArray = a => isArray(a) && isArray(a[0]);
 

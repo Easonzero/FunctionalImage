@@ -47,7 +47,11 @@ var isFunction = function isFunction(a) {
 };
 
 var isArray = function isArray(a) {
-    return a instanceof Array;
+    return toString.apply(a) === "[object Array]";
+};
+
+var isObject = function isObject(a) {
+    return toString.apply(a) === "[object Object]";
 };
 
 var is2DArray = function is2DArray(a) {
@@ -194,10 +198,31 @@ var dbconvert = function dbconvert(type) {
     };
 };
 
-var createDatabase = function createDatabase(gpu) {
-    return function (name, type, values) {
-        var native_func = type + ' db_' + name + '[] = ' + type + '[' + values.length + '](' + dbconvert(type)(values) + ');\n     ' + type + ' ' + name + '(float i){\n        return db_' + name + '[int(i)];\n     }\n    ';
+var createArray = function createArray(gpu) {
+    return function (name, type, array) {
+        var native_func = type + ' db_' + name + '[] = ' + type + '[' + array.length + '](' + dbconvert(type)(array) + ');\n' + type + ' ' + name + '(float i){\n    return db_' + name + '[int(i)];\n}';
         gpu.addNativeFunction(name, native_func);
+    };
+};
+
+var createMap = function createMap(gpu) {
+    return function (name, type, json) {
+        var keys = Object.keys(json);
+        var values = Object.values(json);
+
+        var native_func = keys.map(function (key, i) {
+            return '#define user_' + key.toUpperCase() + ' ' + i;
+        }).join('\n') + '\n' + type + ' db_' + name + '[] = ' + type + '[' + values.length + '](' + dbconvert(type)(values) + ');\n' + type + ' ' + name + '(int i){\n    return db_' + name + '[i];\n}';
+        gpu.addNativeFunction(name, native_func);
+    };
+};
+
+var createDatabase = function createDatabase(gpu) {
+    var create_array = createArray(gpu);
+    var create_map = createMap(gpu);
+    return function (name, type, data) {
+        if (isArray(data)) return create_array(name, type, data);
+        if (isObject(data)) return create_map(name, type, data);
     };
 };
 

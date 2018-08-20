@@ -3,7 +3,7 @@ const image = document.getElementById('image');
 const gl = canvas.getContext('webgl2');
 const {pure,createDatabase} = $fip({canvas:canvas,webGl:gl});
 image.src = './test.jpeg';
-createDatabase('dbcolors', 'float', [1,0,0.3,0.2,0.6]);
+createDatabase('dbcolors', 'float', {white:1.,black:0.});
 image.onload = () => {
     let w = 11, h = 11;
     let max = w*w/4;
@@ -17,10 +17,9 @@ image.onload = () => {
             let d2 = dx * dx + dy * dy;
             if(d2 <= this.constants.max && d2 >= this.constants.min)
                 return v;
-            else return 1.;
+            else return dbcolors(WHITE);
         }, [w, h], 'RGB', {c,max,min})
-        .output()
-        .then(console.log);
+        .draw();
 };
 
 function getPointOnCanvas(canvas, x, y) {
