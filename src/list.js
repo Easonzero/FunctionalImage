@@ -10,3 +10,6 @@ export const loopShift = array => {
     if(array.length === 0) return [];
     return [...tail(array),head(array)];
 }
+
+export const range = (size, startAt=0) =>
+    [...Array(size).keys()].map(i => i + startAt);

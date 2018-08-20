@@ -67,7 +67,7 @@ const mapMapping = input => target => f => new Function('functor',
     `const input = functor[this.thread.y][this.thread.x];
     ${targetConvert(target)
         ([inputConvert(input === TYPE_NUMBER)('input')])
-        (inputs => `${f.name}(${inputs})`)}`
+        (inputs => `${f.name}(${inputs},this.thread.x,this.thread.y)`)}`
 );
 
 const fmap = gpu =>
@@ -111,7 +111,7 @@ const bindMapping = input => target => f => new Function('functor',
      let input = functor[y][x];
     ${targetConvert(target)
         ([inputConvert(input === TYPE_NUMBER)('input')])
-        (inputs => `${f.name}(${inputs},offsetX,offsetY)`)}
+        (inputs => `${f.name}(${inputs},offsetX,offsetY,x,y)`)}
     `
 );
 
@@ -139,7 +139,7 @@ const joinMapping = input => target => f => new Function('functor',
         let input = functor[beginY+y][beginX+x];
         ${accConvert(target)
     ([inputConvert(input === TYPE_NUMBER)('input')])
-    ((target,inputs) => `${f.name}(${target},${inputs},x,y)`)}
+    ((target,inputs) => `${f.name}(${target},${inputs},x,y,beginX,beginY)`)}
      }
      ${targetAccConvert(target)([inputConvert(input === TYPE_NUMBER)('first_input')])}
     `

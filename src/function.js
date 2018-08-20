@@ -1,10 +1,10 @@
-import {TYPE_NUMBER, TYPE_PIXEL, TARGET_BASE, TYPE_FUNCTION} from './global'
+import { TYPE_NUMBER, TYPE_PIXEL, TARGET_BASE, TYPE_FUNCTION } from './global'
 import { is2DArray, isUndefined } from "./utils";
-import {promiseKernel, targetRemapping} from "./kernel";
+import { promiseKernel } from "./kernel";
 import { loopShift } from './list';
 
 const _calParamLength = param => {
-    switch (param.type) {
+    switch (param) {
         case TYPE_NUMBER:
             return 1;
         case TYPE_PIXEL:
@@ -14,7 +14,7 @@ const _calParamLength = param => {
     }
 };
 
-const calParamLength = outputIsNumber => param =>
+export const calParamLength = outputIsNumber => param =>
     outputIsNumber ? _calParamLength(param) : 1;
 
 const parseType = data => {
@@ -63,9 +63,9 @@ class Param {
 }
 
 class CurryFunction {
-    constructor(f, target="RGB", constants={}){
+    constructor(f, target, constants={}){
         this.f = f;
-        this.target = targetRemapping(target);
+        this.target = target;
         this.params = [];
         this.constants = constants;
     }

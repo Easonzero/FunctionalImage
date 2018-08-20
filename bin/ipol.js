@@ -44,6 +44,34 @@
 	  }
 	};
 
+	var last = function last(array) {
+	    return array[array.length - 1];
+	};
+
+	var head = function head(array) {
+	    return array[0];
+	};
+
+	var tail = function tail(array) {
+	    return array.slice(1, array.length);
+	};
+
+	var front = function front(array) {
+	    return array.slice(0, array.length - 1);
+	};
+
+	var loopShift = function loopShift(array) {
+	    if (array.length === 0) return [];
+	    return [].concat(toConsumableArray(tail(array)), [head(array)]);
+	};
+
+	var range = function range(size) {
+	    var startAt = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
+	    return [].concat(toConsumableArray(Array(size).keys())).map(function (i) {
+	        return i + startAt;
+	    });
+	};
+
 	var isUndefined = function isUndefined(a) {
 	    return typeof a === 'undefined';
 	};
@@ -72,21 +100,28 @@
 	    return params;
 	};
 
-	var arrow2anonymous = function arrow2anonymous(f) {
-	    var _ref;
+	var arrow2anonymous = function arrow2anonymous(paramslen) {
+	    return function (f) {
+	        var _ref;
 
-	    var funcstr = f.toString();
-	    var funcarray = funcstr.split('=>');
-	    if (funcarray.length === 1) return f;
-	    var body = funcarray.pop();
-	    var params = funcarray;
-	    params = (_ref = []).concat.apply(_ref, toConsumableArray(params.map(function (p) {
-	        return p.replace(/\s|\(|\)+/g, '').split(',');
-	    })));
-	    body = body.trim();
-	    if (body[0] === '{') body = body.substr(1, body.length - 2);else body = 'return ' + body;
+	        var funcstr = f.toString();
+	        var funcarray = funcstr.split('=>');
+	        if (funcarray.length === 1) return f;
+	        var body = funcarray.pop();
+	        var params = funcarray;
+	        params = (_ref = []).concat.apply(_ref, toConsumableArray(params.map(function (p) {
+	            return p.replace(/\s|\(|\)+/g, '').split(',');
+	        })));
+	        if (params.length < paramslen) {
+	            params = params.concat(range(paramslen - params.length).map(function (i) {
+	                return 'Pa_R_aM_' + i;
+	            }));
+	        }
+	        body = body.trim();
+	        if (body[0] === '{') body = body.substr(1, body.length - 2);else body = 'return ' + body;
 
-	    return new (Function.prototype.bind.apply(Function, [null].concat(toConsumableArray(params), [body])))();
+	        return new (Function.prototype.bind.apply(Function, [null].concat(toConsumableArray(params), [body])))();
+	    };
 	};
 
 	var namedCount = 0;
@@ -338,7 +373,7 @@
 	    return function (target) {
 	        return function (f) {
 	            return new Function('functor', 'const input = functor[this.thread.y][this.thread.x];\n    ' + targetConvert(target)([inputConvert(input === TYPE_NUMBER)('input')])(function (inputs) {
-	                return f.name + '(' + inputs + ')';
+	                return f.name + '(' + inputs + ',this.thread.x,this.thread.y)';
 	            }));
 	        };
 	    };
@@ -387,7 +422,7 @@
 	    return function (target) {
 	        return function (f) {
 	            return new Function('functor', '\n     let x = floor(this.thread.x/this.constants.sizeX_);\n     let y = floor(this.thread.y/this.constants.sizeY_);\n     let offsetX = this.thread.x%this.constants.sizeX_;\n     let offsetY = this.thread.y%this.constants.sizeY_;\n     let input = functor[y][x];\n    ' + targetConvert(target)([inputConvert(input === TYPE_NUMBER)('input')])(function (inputs) {
-	                return f.name + '(' + inputs + ',offsetX,offsetY)';
+	                return f.name + '(' + inputs + ',offsetX,offsetY,x,y)';
 	            }) + '\n    ');
 	        };
 	    };
@@ -417,7 +452,7 @@
 	    return function (target) {
 	        return function (f) {
 	            return new Function('functor', 'let beginX = this.thread.x*this.constants.sizeX_;\n     let beginY = this.thread.y*this.constants.sizeY_;\n     let first_input = functor[beginX][beginY];\n     let N = 0,R = 0,G = 0,B = 0,A = 0;\n     for(let y=0;y<this.constants.sizeY_;y++)\n     for(let x=0;x<this.constants.sizeX_;x++){\n        let input = functor[beginY+y][beginX+x];\n        ' + accConvert(target)([inputConvert(input === TYPE_NUMBER)('input')])(function (target, inputs) {
-	                return f.name + '(' + target + ',' + inputs + ',x,y)';
+	                return f.name + '(' + target + ',' + inputs + ',x,y,beginX,beginY)';
 	            }) + '\n     }\n     ' + targetAccConvert(target)([inputConvert(input === TYPE_NUMBER)('first_input')]) + '\n    ');
 	        };
 	    };
@@ -463,25 +498,21 @@
 	    };
 	};
 
-	var last = function last(array) {
-	    return array[array.length - 1];
+	var _calParamLength = function _calParamLength(param) {
+	    switch (param) {
+	        case TYPE_NUMBER:
+	            return 1;
+	        case TYPE_PIXEL:
+	            return 4;
+	        default:
+	            return 1;
+	    }
 	};
 
-	var head = function head(array) {
-	    return array[0];
-	};
-
-	var tail = function tail(array) {
-	    return array.slice(1, array.length);
-	};
-
-	var front = function front(array) {
-	    return array.slice(0, array.length - 1);
-	};
-
-	var loopShift = function loopShift(array) {
-	    if (array.length === 0) return [];
-	    return [].concat(toConsumableArray(tail(array)), [head(array)]);
+	var calParamLength = function calParamLength(outputIsNumber) {
+	    return function (param) {
+	        return outputIsNumber ? _calParamLength(param) : 1;
+	    };
 	};
 
 	var parseType = function parseType(data) {
@@ -493,7 +524,7 @@
 	};
 
 	var paramAttr = function paramAttr(param) {
-	    if (!(param instanceof Param)) param = new Param(param);
+	    if (!(param instanceof Param$1)) param = new Param$1(param);
 
 	    return {
 	        type: param.type,
@@ -502,12 +533,12 @@
 	};
 
 	var paramValue = function paramValue(param) {
-	    if (param instanceof Param) return param.get();
+	    if (param instanceof Param$1) return param.get();
 
 	    return param;
 	};
 
-	var Param = function () {
+	var Param$1 = function () {
 	    function Param(data) {
 	        classCallCheck(this, Param);
 
@@ -532,13 +563,12 @@
 	}();
 
 	var CurryFunction = function () {
-	    function CurryFunction(f) {
-	        var target = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : "RGB";
+	    function CurryFunction(f, target) {
 	        var constants = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
 	        classCallCheck(this, CurryFunction);
 
 	        this.f = f;
-	        this.target = targetRemapping(target);
+	        this.target = target;
 	        this.params = [];
 	        this.constants = constants;
 	    }
@@ -546,7 +576,7 @@
 	    createClass(CurryFunction, [{
 	        key: "apply",
 	        value: function apply(param) {
-	            if (!(param instanceof Param)) param = new Param(param);
+	            if (!(param instanceof Param$1)) param = new Param$1(param);
 	            this.params.push(param);
 	            return this;
 	        }
@@ -589,7 +619,7 @@
 	    createClass(ContainerFunction, [{
 	        key: "apply",
 	        value: function apply(param) {
-	            if (!(param instanceof Param)) param = new Param(param);
+	            if (!(param instanceof Param$1)) param = new Param$1(param);
 
 	            this.params.push(param);
 	            return this;
@@ -630,11 +660,14 @@
 	}();
 
 	var Container = function () {
-	    function Container(gpu, data, target, constants) {
+	    function Container(gpu, data) {
+	        var target = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : "RGB";
+	        var constants = arguments[3];
 	        classCallCheck(this, Container);
 
 	        this.gpu = gpu;
 	        this.functions = [];
+	        target = targetRemapping(target);
 	        if (isFunction(data)) {
 	            var f = combine(application(gpu), anonymous2named, arrow2anonymous)(data);
 	            var curry_f = new CurryFunction(f, target, constants);
@@ -654,8 +687,13 @@
 
 	    createClass(Container, [{
 	        key: 'fmap',
-	        value: function fmap$$1(f, target, constants) {
-	            f = combine(fmap(this.gpu), anonymous2named, arrow2anonymous)(f);
+	        value: function fmap$$1(f) {
+	            var target = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : "RGB";
+	            var constants = arguments[2];
+
+	            target = targetRemapping(target);
+	            var paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 2;
+	            f = combine(fmap(this.gpu), anonymous2named, arrow2anonymous(paramslen))(f);
 	            var curry_f = new CurryFunction(f, target, constants);
 	            this.functions.push(curry_f);
 	            return this;
@@ -664,10 +702,12 @@
 	        key: 'bind',
 	        value: function bind$$1(f) {
 	            var bindSize = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [1, 1];
-	            var target = arguments[2];
+	            var target = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : "RGB";
 	            var constants = arguments[3];
 
-	            f = combine(bind(this.gpu)(bindSize), anonymous2named, arrow2anonymous)(f);
+	            target = targetRemapping(target);
+	            var paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 4;
+	            f = combine(bind(this.gpu)(bindSize), anonymous2named, arrow2anonymous(paramslen))(f);
 	            var curry_f = new CurryFunction(f, target, constants);
 	            this.functions.push(curry_f);
 	            return this;
@@ -676,10 +716,12 @@
 	        key: 'join',
 	        value: function join$$1(f) {
 	            var joinSize = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [1, 1];
-	            var target = arguments[2];
+	            var target = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : "RGB";
 	            var constants = arguments[3];
 
-	            f = combine(join(this.gpu)(joinSize), anonymous2named, arrow2anonymous)(f);
+	            target = targetRemapping(target);
+	            var paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 5;
+	            f = combine(join(this.gpu)(joinSize), anonymous2named, arrow2anonymous(paramslen))(f);
 	            var curry_f = new CurryFunction(f, target, constants);
 	            this.functions.push(curry_f);
 	            return this;
