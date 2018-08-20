@@ -82,6 +82,34 @@
 	  }
 	};
 
+	var last = function last(array) {
+	    return array[array.length - 1];
+	};
+
+	var head = function head(array) {
+	    return array[0];
+	};
+
+	var tail = function tail(array) {
+	    return array.slice(1, array.length);
+	};
+
+	var front = function front(array) {
+	    return array.slice(0, array.length - 1);
+	};
+
+	var loopShift = function loopShift(array) {
+	    if (array.length === 0) return [];
+	    return [].concat(toConsumableArray(tail(array)), [head(array)]);
+	};
+
+	var range = function range(size) {
+	    var startAt = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
+	    return [].concat(toConsumableArray(Array(size).keys())).map(function (i) {
+	        return i + startAt;
+	    });
+	};
+
 	var isUndefined = function isUndefined(a) {
 	    return typeof a === 'undefined';
 	};
@@ -91,7 +119,11 @@
 	};
 
 	var isArray = function isArray(a) {
-	    return a instanceof Array;
+	    return toString.apply(a) === "[object Array]";
+	};
+
+	var isObject = function isObject(a) {
+	    return toString.apply(a) === "[object Object]";
 	};
 
 	var is2DArray = function is2DArray(a) {
@@ -106,21 +138,28 @@
 	    return params;
 	};
 
-	var arrow2anonymous = function arrow2anonymous(f) {
-	    var _ref;
+	var arrow2anonymous = function arrow2anonymous(paramslen) {
+	    return function (f) {
+	        var _ref;
 
-	    var funcstr = f.toString();
-	    var funcarray = funcstr.split('=>');
-	    if (funcarray.length === 1) return f;
-	    var body = funcarray.pop();
-	    var params = funcarray;
-	    params = (_ref = []).concat.apply(_ref, toConsumableArray(params.map(function (p) {
-	        return p.replace(/\s|\(|\)+/g, '').split(',');
-	    })));
-	    body = body.trim();
-	    if (body[0] === '{') body = body.substr(1, body.length - 2);else body = 'return ' + body;
+	        var funcstr = f.toString();
+	        var funcarray = funcstr.split('=>');
+	        if (funcarray.length === 1) return f;
+	        var body = funcarray.pop();
+	        var params = funcarray;
+	        params = (_ref = []).concat.apply(_ref, toConsumableArray(params.map(function (p) {
+	            return p.replace(/\s|\(|\)+/g, '').split(',');
+	        })));
+	        if (params.length < paramslen) {
+	            params = params.concat(range(paramslen - params.length).map(function (i) {
+	                return 'Pa_R_aM_' + i;
+	            }));
+	        }
+	        body = body.trim();
+	        if (body[0] === '{') body = body.substr(1, body.length - 2);else body = 'return ' + body;
 
-	    return new (Function.prototype.bind.apply(Function, [null].concat(toConsumableArray(params), [body])))();
+	        return new (Function.prototype.bind.apply(Function, [null].concat(toConsumableArray(params), [body])))();
+	    };
 	};
 
 	var namedCount = 0;
@@ -244,10 +283,31 @@
 	    };
 	};
 
-	var createDatabase = function createDatabase(gpu) {
-	    return function (name, type, values) {
-	        var native_func = type + ' db_' + name + '[] = ' + type + '[' + values.length + '](' + dbconvert(type)(values) + ');\n     ' + type + ' ' + name + '(float i){\n        return db_' + name + '[int(i)];\n     }\n    ';
+	var createArray = function createArray(gpu) {
+	    return function (name, type, array) {
+	        var native_func = type + ' db_' + name + '[] = ' + type + '[' + array.length + '](' + dbconvert(type)(array) + ');\n' + type + ' ' + name + '(float i' + (type.slice(0, 3) === 'vec' ? ',float j' : '') + '){\n    return db_' + name + '[int(i)]' + (type.slice(0, 3) === 'vec' ? '[int(j)]' : '') + ';\n}';
 	        gpu.addNativeFunction(name, native_func);
+	    };
+	};
+
+	var createMap = function createMap(gpu) {
+	    return function (name, type, json) {
+	        var keys = Object.keys(json);
+	        var values = Object.values(json);
+
+	        var native_func = keys.map(function (key, i) {
+	            return '#define user_' + key.toUpperCase() + ' ' + i;
+	        }).join('\n') + '\n' + type + ' db_' + name + '[] = ' + type + '[' + values.length + '](' + dbconvert(type)(values) + ');\n' + type + ' ' + name + '(int i' + (type.slice(0, 3) === 'vec' ? ',float j' : '') + '){\n    return db_' + name + '[i]' + (type.slice(0, 3) === 'vec' ? '[int(j)]' : '') + ';\n}';
+	        gpu.addNativeFunction(name, native_func);
+	    };
+	};
+
+	var createDatabase = function createDatabase(gpu) {
+	    var create_array = createArray(gpu);
+	    var create_map = createMap(gpu);
+	    return function (name, type, data) {
+	        if (isArray(data)) return create_array(name, type, data);
+	        if (isObject(data)) return create_map(name, type, data);
 	    };
 	};
 
@@ -300,7 +360,7 @@
 	    return function (inputs) {
 	        return function (f) {
 	            return target.isNumber ? 'return ' + f(inputs.map(call())) : 'this.color(' + target.colorDist.map(function (x, i) {
-	                return x ? '' + f(inputs.map(call(i))) : inputs[0](i);
+	                return x ? '' + f(inputs.map(call(i)), i) : inputs[0](i);
 	            }) + ')';
 	        };
 	    };
@@ -314,7 +374,7 @@
 	            }).filter(function (x) {
 	                return x;
 	            }).map(function (x) {
-	                return x + ' = ' + f(x, inputs.map(call(TARGET_BASE.indexOf(x) - 1)));
+	                return x + ' = ' + f(x, inputs.map(call(TARGET_BASE.indexOf(x) - 1)), TARGET_BASE.indexOf(x) - 1);
 	            }).join(';');
 	        };
 	    };
@@ -356,8 +416,8 @@
 	var mapMapping = function mapMapping(input) {
 	    return function (target) {
 	        return function (f) {
-	            return new Function('functor', 'const input = functor[this.thread.y][this.thread.x];\n    ' + targetConvert(target)([inputConvert(input === TYPE_NUMBER)('input')])(function (inputs) {
-	                return f.name + '(' + inputs + ')';
+	            return new Function('functor', 'const input = functor[this.thread.y][this.thread.x];\n    ' + targetConvert(target)([inputConvert(input === TYPE_NUMBER)('input')])(function (inputs, i) {
+	                return f.name + '(' + inputs + ',' + (!isUndefined(i) ? i + '.,' : '') + 'this.thread.x,this.thread.y)';
 	            }));
 	        };
 	    };
@@ -368,7 +428,7 @@
 	        return function (inputs) {
 	            return function (target) {
 	                return function (constants) {
-	                    return gpu.createKernel(mapMapping.apply(undefined, toConsumableArray(inputType(inputs)))(target)(f)).setConstants({ constants: constants }).setOutput(inputMinSize(inputs)).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
+	                    return gpu.createKernel(mapMapping.apply(undefined, toConsumableArray(inputType(inputs)))(target)(f)).setConstants(Object.assign({}, constants)).setOutput(inputMinSize(inputs)).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
 	                };
 	            };
 	        };
@@ -395,7 +455,7 @@
 	        return function (inputs) {
 	            return function (target) {
 	                return function (constants) {
-	                    return gpu.createKernel(apMapping(inputType(inputs))(target)(f)).setConstants({ constants: constants }).setOutput(inputMinSize(inputs)).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
+	                    return gpu.createKernel(apMapping(inputType(inputs))(target)(f)).setConstants(Object.assign({}, constants)).setOutput(inputMinSize(inputs)).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
 	                };
 	            };
 	        };
@@ -405,8 +465,8 @@
 	var bindMapping = function bindMapping(input) {
 	    return function (target) {
 	        return function (f) {
-	            return new Function('functor', '\n     let x = floor(this.thread.x/this.constants.sizeX_);\n     let y = floor(this.thread.y/this.constants.sizeY_);\n     let offsetX = this.thread.x%this.constants.sizeX_;\n     let offsetY = this.thread.y%this.constants.sizeY_;\n     let input = functor[y][x];\n    ' + targetConvert(target)([inputConvert(input === TYPE_NUMBER)('input')])(function (inputs) {
-	                return f.name + '(' + inputs + ',offsetX,offsetY)';
+	            return new Function('functor', '\n     let x = floor(this.thread.x/this.constants.sizeX_);\n     let y = floor(this.thread.y/this.constants.sizeY_);\n     let offsetX = this.thread.x%this.constants.sizeX_;\n     let offsetY = this.thread.y%this.constants.sizeY_;\n     let input = functor[y][x];\n    ' + targetConvert(target)([inputConvert(input === TYPE_NUMBER)('input')])(function (inputs, i) {
+	                return f.name + '(' + inputs + ',offsetX,offsetY,' + (!isUndefined(i) ? i + '.,' : '') + 'x,y)';
 	            }) + '\n    ');
 	        };
 	    };
@@ -432,8 +492,8 @@
 	var joinMapping = function joinMapping(input) {
 	    return function (target) {
 	        return function (f) {
-	            return new Function('functor', 'let beginX = this.thread.x*this.constants.sizeX_;\n     let beginY = this.thread.y*this.constants.sizeY_;\n     let first_input = functor[beginX][beginY];\n     let N = 0,R = 0,G = 0,B = 0,A = 0;\n     for(let y=0;y<this.constants.sizeY_;y++)\n     for(let x=0;x<this.constants.sizeX_;x++){\n        let input = functor[beginY+y][beginX+x];\n        ' + accConvert(target)([inputConvert(input === TYPE_NUMBER)('input')])(function (target, inputs) {
-	                return f.name + '(' + target + ',' + inputs + ',x,y)';
+	            return new Function('functor', 'let beginX = this.thread.x*this.constants.sizeX_;\n     let beginY = this.thread.y*this.constants.sizeY_;\n     let first_input = functor[beginX][beginY];\n     let N = 0,R = 0,G = 0,B = 0,A = 0;\n     for(let y=0;y<this.constants.sizeY_;y++)\n     for(let x=0;x<this.constants.sizeX_;x++){\n        let input = functor[beginY+y][beginX+x];\n        ' + accConvert(target)([inputConvert(input === TYPE_NUMBER)('input')])(function (target, inputs, i) {
+	                return f.name + '(' + target + ',' + inputs + ',x,y,' + (!isUndefined(i) ? i + '.,' : '') + 'beginX,beginY)';
 	            }) + '\n     }\n     ' + targetAccConvert(target)([inputConvert(input === TYPE_NUMBER)('first_input')]) + '\n    ');
 	        };
 	    };
@@ -473,25 +533,21 @@
 	    };
 	};
 
-	var last = function last(array) {
-	    return array[array.length - 1];
+	var _calParamLength = function _calParamLength(param) {
+	    switch (param) {
+	        case TYPE_NUMBER:
+	            return 1;
+	        case TYPE_PIXEL:
+	            return 4;
+	        default:
+	            return 1;
+	    }
 	};
 
-	var head = function head(array) {
-	    return array[0];
-	};
-
-	var tail = function tail(array) {
-	    return array.slice(1, array.length);
-	};
-
-	var front = function front(array) {
-	    return array.slice(0, array.length - 1);
-	};
-
-	var loopShift = function loopShift(array) {
-	    if (array.length === 0) return [];
-	    return [].concat(toConsumableArray(tail(array)), [head(array)]);
+	var calParamLength = function calParamLength(outputIsNumber) {
+	    return function (param) {
+	        return outputIsNumber ? _calParamLength(param) : 1;
+	    };
 	};
 
 	var parseType = function parseType(data) {
@@ -503,7 +559,7 @@
 	};
 
 	var paramAttr = function paramAttr(param) {
-	    if (!(param instanceof Param)) param = new Param(param);
+	    if (!(param instanceof Param$1)) param = new Param$1(param);
 
 	    return {
 	        type: param.type,
@@ -512,12 +568,12 @@
 	};
 
 	var paramValue = function paramValue(param) {
-	    if (param instanceof Param) return param.get();
+	    if (param instanceof Param$1) return param.get();
 
 	    return param;
 	};
 
-	var Param = function () {
+	var Param$1 = function () {
 	    function Param(data) {
 	        classCallCheck(this, Param);
 
@@ -542,13 +598,12 @@
 	}();
 
 	var CurryFunction = function () {
-	    function CurryFunction(f) {
-	        var target = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : "RGB";
+	    function CurryFunction(f, target) {
 	        var constants = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
 	        classCallCheck(this, CurryFunction);
 
 	        this.f = f;
-	        this.target = targetRemapping(target);
+	        this.target = target;
 	        this.params = [];
 	        this.constants = constants;
 	    }
@@ -556,7 +611,7 @@
 	    createClass(CurryFunction, [{
 	        key: "apply",
 	        value: function apply(param) {
-	            if (!(param instanceof Param)) param = new Param(param);
+	            if (!(param instanceof Param$1)) param = new Param$1(param);
 	            this.params.push(param);
 	            return this;
 	        }
@@ -599,7 +654,7 @@
 	    createClass(ContainerFunction, [{
 	        key: "apply",
 	        value: function apply(param) {
-	            if (!(param instanceof Param)) param = new Param(param);
+	            if (!(param instanceof Param$1)) param = new Param$1(param);
 
 	            this.params.push(param);
 	            return this;
@@ -640,11 +695,14 @@
 	}();
 
 	var Container = function () {
-	    function Container(gpu, data, target, constants) {
+	    function Container(gpu, data) {
+	        var target = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : "RGB";
+	        var constants = arguments[3];
 	        classCallCheck(this, Container);
 
 	        this.gpu = gpu;
 	        this.functions = [];
+	        target = targetRemapping(target);
 	        if (isFunction(data)) {
 	            var f = combine(application(gpu), anonymous2named, arrow2anonymous)(data);
 	            var curry_f = new CurryFunction(f, target, constants);
@@ -664,8 +722,13 @@
 
 	    createClass(Container, [{
 	        key: 'fmap',
-	        value: function fmap$$1(f, target, constants) {
-	            f = combine(fmap(this.gpu), anonymous2named, arrow2anonymous)(f);
+	        value: function fmap$$1(f) {
+	            var target = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : "RGB";
+	            var constants = arguments[2];
+
+	            target = targetRemapping(target);
+	            var paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 2 + (target.isNumber ? 0 : 1);
+	            f = combine(fmap(this.gpu), anonymous2named, arrow2anonymous(paramslen))(f);
 	            var curry_f = new CurryFunction(f, target, constants);
 	            this.functions.push(curry_f);
 	            return this;
@@ -674,10 +737,12 @@
 	        key: 'bind',
 	        value: function bind$$1(f) {
 	            var bindSize = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [1, 1];
-	            var target = arguments[2];
+	            var target = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : "RGB";
 	            var constants = arguments[3];
 
-	            f = combine(bind(this.gpu)(bindSize), anonymous2named, arrow2anonymous)(f);
+	            target = targetRemapping(target);
+	            var paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 4 + (target.isNumber ? 0 : 1);
+	            f = combine(bind(this.gpu)(bindSize), anonymous2named, arrow2anonymous(paramslen))(f);
 	            var curry_f = new CurryFunction(f, target, constants);
 	            this.functions.push(curry_f);
 	            return this;
@@ -686,10 +751,12 @@
 	        key: 'join',
 	        value: function join$$1(f) {
 	            var joinSize = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [1, 1];
-	            var target = arguments[2];
+	            var target = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : "RGB";
 	            var constants = arguments[3];
 
-	            f = combine(join(this.gpu)(joinSize), anonymous2named, arrow2anonymous)(f);
+	            target = targetRemapping(target);
+	            var paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 5 + (target.isNumber ? 0 : 1);
+	            f = combine(join(this.gpu)(joinSize), anonymous2named, arrow2anonymous(paramslen))(f);
 	            var curry_f = new CurryFunction(f, target, constants);
 	            this.functions.push(curry_f);
 	            return this;
@@ -804,22 +871,35 @@
 	    }, {
 	        key: 'draw',
 	        value: function draw() {
-	            return this.get() // get container function
-	            .get(this.gpu, false) // get kernel function
-	            (); // call the function
+	            var containerf = this.get();
+	            var rtType = containerf.rtType;
+
+	            if (rtType != TYPE_PIXEL) throw "[ERROR] type of return value is not image!";
+
+	            return containerf.get(this.gpu, false)();
 	        }
 	    }, {
 	        key: 'output',
 	        value: function output() {
 	            var _this = this;
 
-	            return this.get().get(this.gpu, false)().then(function (texture) {
-	                return texture.toArray(_this.gpu);
-	            });
+	            var containerf = this.get();
+	            var rtType = containerf.rtType;
+
+	            if (rtType === TYPE_NUMBER) {
+	                return containerf.get(this.gpu, false)().then(function (texture) {
+	                    return texture.toArray(_this.gpu);
+	                });
+	            } else if (rtType === TYPE_PIXEL) return containerf.get(this.gpu, true)();else throw "[ERROR] type of return value is function!";
 	        }
 	    }]);
 	    return Container;
 	}();
+
+	GPU.WebGLKernel.prototype.updateMaxTexSize = function () {
+	    var texSize = this.texSize;
+	    this.maxTexSize = [].concat(toConsumableArray(texSize));
+	};
 
 	var pure = function pure(gpu) {
 	    return function (data, target) {
@@ -833,7 +913,8 @@
 	    var gpu = new GPU(params);
 	    return {
 	        pure: pure(gpu),
-	        createDatabase: createDatabase(gpu)
+	        createDatabase: createDatabase(gpu),
+	        gpu: gpu
 	    };
 	};
 

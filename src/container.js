@@ -1,17 +1,18 @@
 import {
     fmap, bind, join, application, convolute,
-    combinePromiseKernels, promiseKernel
+    combinePromiseKernels, promiseKernel, targetRemapping
 } from './kernel'
-import { CurryFunction, ContainerFunction, Param } from './function'
+import { CurryFunction, ContainerFunction, calParamLength } from './function'
 import { combine, constf } from './superfunction'
 import { arrow2anonymous, anonymous2named, isFunction } from './utils'
 import { front, last, head } from "./list";
 import { TYPE_NUMBER, TYPE_PIXEL } from "./global";
 
 class Container {
-    constructor(gpu, data, target, constants){
+    constructor(gpu, data, target="RGB", constants){
         this.gpu = gpu;
         this.functions = [];
+        target = targetRemapping(target);
         if(isFunction(data)){
             let f = combine(application(gpu),anonymous2named,arrow2anonymous)(data);
             let curry_f = new CurryFunction(f, target, constants);
@@ -23,22 +24,28 @@ class Container {
         }
     }
 
-    fmap(f, target, constants){
-        f = combine(fmap(this.gpu),anonymous2named,arrow2anonymous)(f);
+    fmap(f, target="RGB", constants){
+        target = targetRemapping(target);
+        let paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 2 + (target.isNumber?0:1);
+        f = combine(fmap(this.gpu), anonymous2named, arrow2anonymous(paramslen))(f);
         let curry_f = new CurryFunction(f, target, constants);
         this.functions.push(curry_f);
         return this;
     }
 
-    bind(f, bindSize=[1, 1], target, constants){
-        f = combine(bind(this.gpu)(bindSize),anonymous2named,arrow2anonymous)(f);
+    bind(f, bindSize=[1, 1], target="RGB", constants){
+        target = targetRemapping(target);
+        let paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 4 + (target.isNumber?0:1);
+        f = combine(bind(this.gpu)(bindSize), anonymous2named, arrow2anonymous(paramslen))(f);
         let curry_f = new CurryFunction(f, target, constants);
         this.functions.push(curry_f);
         return this;
     }
 
-    join(f, joinSize = [1, 1], target, constants){
-        f = combine(join(this.gpu)(joinSize),anonymous2named,arrow2anonymous)(f);
+    join(f, joinSize = [1, 1], target="RGB", constants){
+        target = targetRemapping(target);
+        let paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 5 + (target.isNumber?0:1);
+        f = combine(join(this.gpu)(joinSize), anonymous2named, arrow2anonymous(paramslen))(f);
         let curry_f = new CurryFunction(f, target, constants);
         this.functions.push(curry_f);
         return this;
@@ -128,16 +135,27 @@ class Container {
     }
 
     draw(){
-        return this.get() // get container function
-                   .get(this.gpu,false) // get kernel function
-                       ();// call the function
+        let containerf = this.get();
+        let rtType = containerf.rtType;
+
+        if(rtType != TYPE_PIXEL)
+            throw "[ERROR] type of return value is not image!"
+
+        return containerf.get(this.gpu,false)();
     }
 
     output(){
-        return this.get()
-                   .get(this.gpu,false)
-                       ()
-                    .then(texture => texture.toArray(this.gpu))
+        let containerf = this.get();
+        let rtType = containerf.rtType;
+
+        if(rtType===TYPE_NUMBER){
+            return containerf.get(this.gpu, false)
+                ()
+                .then(texture => texture.toArray(this.gpu))
+        } else if(rtType===TYPE_PIXEL)
+            return containerf.get(this.gpu,true)();
+
+        else throw "[ERROR] type of return value is function!"
     }
 }
 

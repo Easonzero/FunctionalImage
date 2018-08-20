@@ -34,7 +34,7 @@ const targetRemapping = (target) => {
 const targetConvert = target => inputs => f =>
     target.isNumber ?
         `return ${f(inputs.map(call()))}` : `this.color(${target.colorDist.map(
-            (x, i) => x ? `${f(inputs.map(call(i)))}` : inputs[0](i))})`;
+            (x, i) => x ? `${f(inputs.map(call(i)),i)}` : inputs[0](i))})`;
 
 const targetNameConvert = target =>
     target.isNumber ? 'N' : target.colorDist.map((x,i) => x ? TARGET_BASE[i+1] : x)
@@ -44,7 +44,7 @@ const accConvert = target => inputs => f =>
     target.isNumber ?
         `N = ${f(inputs.map(call()))}` :
         target.colorDist.map((x,i) => x ? TARGET_BASE[i+1] : x)
-            .filter(x => x).map(x => `${x} = ${f(x,inputs.map(call(TARGET_BASE.indexOf(x)-1)))}`).join(';');
+            .filter(x => x).map(x => `${x} = ${f(x,inputs.map(call(TARGET_BASE.indexOf(x)-1)),TARGET_BASE.indexOf(x)-1)}`).join(';');
 
 const targetAccConvert = target => inputs =>
     target.isNumber ?
@@ -67,13 +67,13 @@ const mapMapping = input => target => f => new Function('functor',
     `const input = functor[this.thread.y][this.thread.x];
     ${targetConvert(target)
         ([inputConvert(input === TYPE_NUMBER)('input')])
-        (inputs => `${f.name}(${inputs})`)}`
+        ((inputs,i) => `${f.name}(${inputs},${!isUndefined(i)?i+'.,':''}this.thread.x,this.thread.y)`)}`
 );
 
 const fmap = gpu =>
     f => inputs => target => constants =>
         gpu.createKernel(mapMapping(...inputType(inputs))(target)(f))
-            .setConstants({constants})
+            .setConstants({...constants})
             .setOutput(inputMinSize(inputs))
             .setFunctions([f])
             .setOutputToTexture(true)
@@ -93,7 +93,7 @@ const apMapping = inputs => target => f => {
 const application = gpu => 
     f => inputs => target => constants =>
         gpu.createKernel(apMapping(inputType(inputs))(target)(f))
-            .setConstants({constants})
+            .setConstants({...constants})
             .setOutput(inputMinSize(inputs))
             .setFunctions([f])
             .setOutputToTexture(true)
@@ -108,7 +108,7 @@ const bindMapping = input => target => f => new Function('functor',
      let input = functor[y][x];
     ${targetConvert(target)
         ([inputConvert(input === TYPE_NUMBER)('input')])
-        (inputs => `${f.name}(${inputs},offsetX,offsetY)`)}
+        ((inputs,i) => `${f.name}(${inputs},offsetX,offsetY,${!isUndefined(i)?i+'.,':''}x,y)`)}
     `
 );
 
@@ -135,7 +135,7 @@ const joinMapping = input => target => f => new Function('functor',
         let input = functor[beginY+y][beginX+x];
         ${accConvert(target)
     ([inputConvert(input === TYPE_NUMBER)('input')])
-    ((target,inputs) => `${f.name}(${target},${inputs},x,y)`)}
+    ((target,inputs,i) => `${f.name}(${target},${inputs},x,y,${!isUndefined(i)?i+'.,':''}beginX,beginY)`)}
      }
      ${targetAccConvert(target)([inputConvert(input === TYPE_NUMBER)('first_input')])}
     `

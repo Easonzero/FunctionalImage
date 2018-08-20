@@ -1,8 +1,12 @@
+import {range} from './list';
+
 export const isUndefined = a => typeof a === 'undefined';
 
 export const isFunction = a => typeof a === 'function';
 
-export const isArray = a => a instanceof Array;
+export const isArray = a => toString.apply(a) === "[object Array]";
+
+export const isObject = a => toString.apply(a) === "[object Object]";
 
 export const is2DArray = a => isArray(a) && isArray(a[0]);
 
@@ -14,7 +18,7 @@ export const genParamsName = l => {
     return params;
 };
 
-export const arrow2anonymous = f => {
+export const arrow2anonymous = paramslen => f => {
     let funcstr = f.toString();
     let funcarray = funcstr.split('=>');
     if(funcarray.length === 1) return f;
@@ -23,6 +27,9 @@ export const arrow2anonymous = f => {
     params = [].concat(...params.map(
         p=>p.replace(/\s|\(|\)+/g,'').split(',')
     ));
+    if(params.length < paramslen){
+        params = params.concat(range(paramslen-params.length).map(i=>`Pa_R_aM_${i}`));
+    }
     body = body.trim();
     if(body[0]==='{')
         body = body.substr(1,body.length-2);
