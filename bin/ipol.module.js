@@ -24,44 +24,6 @@ var createClass = function () {
   };
 }();
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 var toArray = function (arr) {
   return Array.isArray(arr) ? arr : Array.from(arr);
 };
@@ -149,8 +111,6 @@ var combine = function combine(a) {
     };else return a;
 };
 
-
-
 var constf = function constf(a) {
     return function () {
         return a;
@@ -170,7 +130,6 @@ var call = function call() {
 var multi = function multi(a) {
     return function (b) {
         if (!a instanceof Array) {
-            
 
             var _ref = [a, b];
             b = _ref[0];
@@ -183,12 +142,9 @@ var multi = function multi(a) {
     };
 };
 
-
-
 var add = function add(a) {
     return function (b) {
         if (!a instanceof Array) {
-            
 
             var _ref2 = [a, b];
             b = _ref2[0];
@@ -752,6 +708,7 @@ var Container = function () {
     }, {
         key: 'get',
         value: function get$$1() {
+
             if (this.functions.length === 1) return new ContainerFunction(head(this.functions));
             var prevs = front(this.functions);
             var f = last(this.functions);
@@ -824,6 +781,13 @@ var Container = function () {
     return Container;
 }();
 
+//hack, fuck gpu.js
+
+GPU.WebGLKernel.prototype.updateMaxTexSize = function () {
+    var texSize = this.texSize;
+    this.maxTexSize = [].concat(toConsumableArray(texSize));
+};
+
 var pure = function pure(gpu) {
     return function (data, target) {
         if (isFunction(data)) return new Container(gpu, data, target);else {
@@ -836,6 +800,7 @@ window.$fip = function (params) {
     var gpu = new GPU(params);
     return {
         pure: pure(gpu),
-        createDatabase: createDatabase(gpu)
+        createDatabase: createDatabase(gpu),
+        gpu: gpu
     };
 };

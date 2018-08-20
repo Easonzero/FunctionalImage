@@ -19,6 +19,7 @@ image.onload = () => {
                 return v;
             else return dbcolors(0);
         }, [w, h], 'RGB', {c,max,min})
+        .join(r => v => x => y => r * (y * 2 + x) / (y * 2 + x + 1) + v / (y * 2 + x + 1), [w, h], 'RGB')
         .draw();
 };
 
@@ -26,10 +27,9 @@ function getPointOnCanvas(canvas, x, y) {
 
     let bbox = canvas.getBoundingClientRect();
 
-    return { x: x- bbox.left,
-
-        y:y - bbox.top - 16
-
+    return { 
+        x: x - bbox.left,
+        y: y - bbox.top - 16
     };
 
 }
