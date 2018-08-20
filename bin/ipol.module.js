@@ -764,18 +764,26 @@ var Container = function () {
     }, {
         key: 'draw',
         value: function draw() {
-            return this.get() // get container function
-            .get(this.gpu, false) // get kernel function
-            (); // call the function
+            var containerf = this.get();
+            var rtType = containerf.rtType;
+
+            if (rtType != TYPE_PIXEL) throw "[ERROR] type of return value is not image!";
+
+            return containerf.get(this.gpu, false)();
         }
     }, {
         key: 'output',
         value: function output() {
             var _this = this;
 
-            return this.get().get(this.gpu, false)().then(function (texture) {
-                return texture.toArray(_this.gpu);
-            });
+            var containerf = this.get();
+            var rtType = containerf.rtType;
+
+            if (rtType === TYPE_NUMBER) {
+                return containerf.get(this.gpu, false)().then(function (texture) {
+                    return texture.toArray(_this.gpu);
+                });
+            } else if (rtType === TYPE_PIXEL) return containerf.get(this.gpu, true)();else throw "[ERROR] type of return value is function!";
         }
     }]);
     return Container;

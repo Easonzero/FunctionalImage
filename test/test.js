@@ -17,10 +17,10 @@ image.onload = () => {
             let d2 = dx * dx + dy * dy;
             if(d2 <= this.constants.max && d2 >= this.constants.min)
                 return v;
-            else return dbcolors(0);
+            else return 1.;
         }, [w, h], 'RGB', {c,max,min})
-        .join(r => v => x => y => r * (y * 2 + x) / (y * 2 + x + 1) + v / (y * 2 + x + 1), [w, h], 'RGB')
-        .draw();
+        .output()
+        .then(console.log);
 };
 
 function getPointOnCanvas(canvas, x, y) {

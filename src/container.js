@@ -128,16 +128,27 @@ class Container {
     }
 
     draw(){
-        return this.get() // get container function
-                   .get(this.gpu,false) // get kernel function
-                       ();// call the function
+        let containerf = this.get();
+        let rtType = containerf.rtType;
+
+        if(rtType != TYPE_PIXEL)
+            throw "[ERROR] type of return value is not image!"
+
+        return containerf.get(this.gpu,false)();
     }
 
     output(){
-        return this.get()
-                   .get(this.gpu,false)
-                       ()
-                    .then(texture => texture.toArray(this.gpu))
+        let containerf = this.get();
+        let rtType = containerf.rtType;
+        
+        if(rtType===TYPE_NUMBER){
+            return containerf.get(this.gpu, false)
+                ()
+                .then(texture => texture.toArray(this.gpu))
+        } else if(rtType===TYPE_PIXEL)
+            return containerf.get(this.gpu,true)();
+
+        else throw "[ERROR] type of return value is function!"
     }
 }
 
