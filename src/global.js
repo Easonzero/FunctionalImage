@@ -26,7 +26,13 @@ const createArray = gpu => (name, type, array) => {
     let native_func = `${type} db_${name}[] = ${type}[${array.length}](${dbconvert(type)(array)});
 ${type} ${name}(float i){
     return db_${name}[int(i)];
-}`;
+}
+`;
+    if(type.slice(0,3)==='vec')
+        native_func += `float ${name}(float i,float j){
+            return db_${name}[int(i)][int(j)];
+        }
+        `
     gpu.addNativeFunction(name, native_func);
 };
 
@@ -38,7 +44,13 @@ const createMap = gpu => (name, type, json) => {
 ${type} db_${name}[] = ${type}[${values.length}](${dbconvert(type)(values)});
 ${type} ${name}(int i){
     return db_${name}[i];
-}`;
+}
+`;
+    if (type.slice(0, 3) === 'vec')
+        native_func += `float ${name}(int i,float j){
+            return db_${name}[i][int(j)];
+        }
+        `
     gpu.addNativeFunction(name, native_func);
 };
 

@@ -241,7 +241,8 @@
 
 	var createArray = function createArray(gpu) {
 	    return function (name, type, array) {
-	        var native_func = type + ' db_' + name + '[] = ' + type + '[' + array.length + '](' + dbconvert(type)(array) + ');\n' + type + ' ' + name + '(float i){\n    return db_' + name + '[int(i)];\n}';
+	        var native_func = type + ' db_' + name + '[] = ' + type + '[' + array.length + '](' + dbconvert(type)(array) + ');\n' + type + ' ' + name + '(float i){\n    return db_' + name + '[int(i)];\n}\n';
+	        if (type.slice(0, 3) === 'vec') native_func += 'float ' + name + '(float i,float j){\n            return db_' + name + '[int(i)][int(j)];\n        }\n        ';
 	        gpu.addNativeFunction(name, native_func);
 	    };
 	};
@@ -253,7 +254,8 @@
 
 	        var native_func = keys.map(function (key, i) {
 	            return '#define user_' + key.toUpperCase() + ' ' + i;
-	        }).join('\n') + '\n' + type + ' db_' + name + '[] = ' + type + '[' + values.length + '](' + dbconvert(type)(values) + ');\n' + type + ' ' + name + '(int i){\n    return db_' + name + '[i];\n}';
+	        }).join('\n') + '\n' + type + ' db_' + name + '[] = ' + type + '[' + values.length + '](' + dbconvert(type)(values) + ');\n' + type + ' ' + name + '(int i){\n    return db_' + name + '[i];\n}\n';
+	        if (type.slice(0, 3) === 'vec') native_func += 'float ' + name + '(int i,float j){\n            return db_' + name + '[i][int(j)];\n        }\n        ';
 	        gpu.addNativeFunction(name, native_func);
 	    };
 	};
@@ -316,7 +318,7 @@
 	    return function (inputs) {
 	        return function (f) {
 	            return target.isNumber ? 'return ' + f(inputs.map(call())) : 'this.color(' + target.colorDist.map(function (x, i) {
-	                return x ? '' + f(inputs.map(call(i))) : inputs[0](i);
+	                return x ? '' + f(inputs.map(call(i)), i) : inputs[0](i);
 	            }) + ')';
 	        };
 	    };
@@ -330,7 +332,7 @@
 	            }).filter(function (x) {
 	                return x;
 	            }).map(function (x) {
-	                return x + ' = ' + f(x, inputs.map(call(TARGET_BASE.indexOf(x) - 1)));
+	                return x + ' = ' + f(x, inputs.map(call(TARGET_BASE.indexOf(x) - 1)), TARGET_BASE.indexOf(x) - 1);
 	            }).join(';');
 	        };
 	    };
@@ -372,8 +374,8 @@
 	var mapMapping = function mapMapping(input) {
 	    return function (target) {
 	        return function (f) {
-	            return new Function('functor', 'const input = functor[this.thread.y][this.thread.x];\n    ' + targetConvert(target)([inputConvert(input === TYPE_NUMBER)('input')])(function (inputs) {
-	                return f.name + '(' + inputs + ',this.thread.x,this.thread.y)';
+	            return new Function('functor', 'const input = functor[this.thread.y][this.thread.x];\n    ' + targetConvert(target)([inputConvert(input === TYPE_NUMBER)('input')])(function (inputs, i) {
+	                return f.name + '(' + inputs + ',' + (!isUndefined(i) ? i + '.,' : '') + 'this.thread.x,this.thread.y)';
 	            }));
 	        };
 	    };
@@ -384,7 +386,7 @@
 	        return function (inputs) {
 	            return function (target) {
 	                return function (constants) {
-	                    return gpu.createKernel(mapMapping.apply(undefined, toConsumableArray(inputType(inputs)))(target)(f), { constants: constants }).setOutput(inputMinSize(inputs)).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
+	                    return gpu.createKernel(mapMapping.apply(undefined, toConsumableArray(inputType(inputs)))(target)(f)).setConstants(Object.assign({}, constants)).setOutput(inputMinSize(inputs)).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
 	                };
 	            };
 	        };
@@ -411,7 +413,7 @@
 	        return function (inputs) {
 	            return function (target) {
 	                return function (constants) {
-	                    return gpu.createKernel(apMapping(inputType(inputs))(target)(f), { constants: constants }).setOutput(inputMinSize(inputs)).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
+	                    return gpu.createKernel(apMapping(inputType(inputs))(target)(f)).setConstants(Object.assign({}, constants)).setOutput(inputMinSize(inputs)).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
 	                };
 	            };
 	        };
@@ -421,8 +423,8 @@
 	var bindMapping = function bindMapping(input) {
 	    return function (target) {
 	        return function (f) {
-	            return new Function('functor', '\n     let x = floor(this.thread.x/this.constants.sizeX_);\n     let y = floor(this.thread.y/this.constants.sizeY_);\n     let offsetX = this.thread.x%this.constants.sizeX_;\n     let offsetY = this.thread.y%this.constants.sizeY_;\n     let input = functor[y][x];\n    ' + targetConvert(target)([inputConvert(input === TYPE_NUMBER)('input')])(function (inputs) {
-	                return f.name + '(' + inputs + ',offsetX,offsetY,x,y)';
+	            return new Function('functor', '\n     let x = floor(this.thread.x/this.constants.sizeX_);\n     let y = floor(this.thread.y/this.constants.sizeY_);\n     let offsetX = this.thread.x%this.constants.sizeX_;\n     let offsetY = this.thread.y%this.constants.sizeY_;\n     let input = functor[y][x];\n    ' + targetConvert(target)([inputConvert(input === TYPE_NUMBER)('input')])(function (inputs, i) {
+	                return f.name + '(' + inputs + ',offsetX,offsetY,' + (!isUndefined(i) ? i + '.,' : '') + 'x,y)';
 	            }) + '\n    ');
 	        };
 	    };
@@ -437,10 +439,7 @@
 	                        var size = inputMinSize(inputs);
 	                        modifyVector(size)(multi(bindSize)(size));
 
-	                        return gpu.createKernel(bindMapping.apply(undefined, toConsumableArray(inputType(inputs)))(target)(f), {
-	                            constants: Object.assign({ sizeX_: bindSize[0], sizeY_: bindSize[1] }, constants),
-	                            output: size
-	                        }).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
+	                        return gpu.createKernel(bindMapping.apply(undefined, toConsumableArray(inputType(inputs)))(target)(f)).setConstants(Object.assign({ sizeX_: bindSize[0], sizeY_: bindSize[1] }, constants)).setOutput(size).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
 	                    };
 	                };
 	            };
@@ -451,8 +450,8 @@
 	var joinMapping = function joinMapping(input) {
 	    return function (target) {
 	        return function (f) {
-	            return new Function('functor', 'let beginX = this.thread.x*this.constants.sizeX_;\n     let beginY = this.thread.y*this.constants.sizeY_;\n     let first_input = functor[beginX][beginY];\n     let N = 0,R = 0,G = 0,B = 0,A = 0;\n     for(let y=0;y<this.constants.sizeY_;y++)\n     for(let x=0;x<this.constants.sizeX_;x++){\n        let input = functor[beginY+y][beginX+x];\n        ' + accConvert(target)([inputConvert(input === TYPE_NUMBER)('input')])(function (target, inputs) {
-	                return f.name + '(' + target + ',' + inputs + ',x,y,beginX,beginY)';
+	            return new Function('functor', 'let beginX = this.thread.x*this.constants.sizeX_;\n     let beginY = this.thread.y*this.constants.sizeY_;\n     let first_input = functor[beginX][beginY];\n     let N = 0,R = 0,G = 0,B = 0,A = 0;\n     for(let y=0;y<this.constants.sizeY_;y++)\n     for(let x=0;x<this.constants.sizeX_;x++){\n        let input = functor[beginY+y][beginX+x];\n        ' + accConvert(target)([inputConvert(input === TYPE_NUMBER)('input')])(function (target, inputs, i) {
+	                return f.name + '(' + target + ',' + inputs + ',x,y,' + (!isUndefined(i) ? i + '.,' : '') + 'beginX,beginY)';
 	            }) + '\n     }\n     ' + targetAccConvert(target)([inputConvert(input === TYPE_NUMBER)('first_input')]) + '\n    ');
 	        };
 	    };
@@ -466,10 +465,7 @@
 	                    return function (constants) {
 	                        var size = inputMinSize(inputs);
 	                        modifyVector(size)(divInt(size)(joinSize));
-	                        return gpu.createKernel(joinMapping.apply(undefined, toConsumableArray(inputType(inputs)))(target)(f), {
-	                            constants: Object.assign({ sizeX_: joinSize[0], sizeY_: joinSize[1] }, constants),
-	                            output: size
-	                        }).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
+	                        return gpu.createKernel(joinMapping.apply(undefined, toConsumableArray(inputType(inputs)))(target)(f)).setOutput(size).setConstants(Object.assign({ sizeX_: joinSize[0], sizeY_: joinSize[1] }, constants)).setFunctions([f]).setOutputToTexture(true).setGraphical(!target.isNumber);
 	                    };
 	                };
 	            };
@@ -488,10 +484,7 @@
 	        return function (inputs) {
 	            return function (target) {
 	                return function (constants) {
-	                    return gpu.createKernel(convoluteMapping(inputs[1].type === TYPE_NUMBER)(target.isNumber), {
-	                        constants: { sizeX_: inputs[1].size[0], sizeY_: inputs[1].size[1], step_: step },
-	                        output: add(divInt(add(inputs[0].size)(multi(inputs[1].size)(-1)))(step))(-1)
-	                    }).setOutputToTexture(true).setGraphical(!target.isNumber);
+	                    return gpu.createKernel(convoluteMapping(inputs[1].type === TYPE_NUMBER)(target.isNumber)).setConstants({ sizeX_: inputs[1].size[0], sizeY_: inputs[1].size[1], step_: step }).setOutput(add(divInt(add(inputs[0].size)(multi(inputs[1].size)(-1)))(step))(-1)).setOutputToTexture(true).setGraphical(!target.isNumber);
 	                };
 	            };
 	        };
@@ -692,7 +685,7 @@
 	            var constants = arguments[2];
 
 	            target = targetRemapping(target);
-	            var paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 2;
+	            var paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 2 + (target.isNumber ? 0 : 1);
 	            f = combine(fmap(this.gpu), anonymous2named, arrow2anonymous(paramslen))(f);
 	            var curry_f = new CurryFunction(f, target, constants);
 	            this.functions.push(curry_f);
@@ -706,7 +699,7 @@
 	            var constants = arguments[3];
 
 	            target = targetRemapping(target);
-	            var paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 4;
+	            var paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 4 + (target.isNumber ? 0 : 1);
 	            f = combine(bind(this.gpu)(bindSize), anonymous2named, arrow2anonymous(paramslen))(f);
 	            var curry_f = new CurryFunction(f, target, constants);
 	            this.functions.push(curry_f);
@@ -720,7 +713,7 @@
 	            var constants = arguments[3];
 
 	            target = targetRemapping(target);
-	            var paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 5;
+	            var paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 5 + (target.isNumber ? 0 : 1);
 	            f = combine(join(this.gpu)(joinSize), anonymous2named, arrow2anonymous(paramslen))(f);
 	            var curry_f = new CurryFunction(f, target, constants);
 	            this.functions.push(curry_f);

@@ -26,7 +26,7 @@ class Container {
 
     fmap(f, target="RGB", constants){
         target = targetRemapping(target);
-        let paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 2;
+        let paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 2 + (target.isNumber?0:1);
         f = combine(fmap(this.gpu), anonymous2named, arrow2anonymous(paramslen))(f);
         let curry_f = new CurryFunction(f, target, constants);
         this.functions.push(curry_f);
@@ -35,7 +35,7 @@ class Container {
 
     bind(f, bindSize=[1, 1], target="RGB", constants){
         target = targetRemapping(target);
-        let paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 4;
+        let paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 4 + (target.isNumber?0:1);
         f = combine(bind(this.gpu)(bindSize), anonymous2named, arrow2anonymous(paramslen))(f);
         let curry_f = new CurryFunction(f, target, constants);
         this.functions.push(curry_f);
@@ -44,7 +44,7 @@ class Container {
 
     join(f, joinSize = [1, 1], target="RGB", constants){
         target = targetRemapping(target);
-        let paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 5;
+        let paramslen = calParamLength(target.isNumber)(last(this.functions).rtType) + 5 + (target.isNumber?0:1);
         f = combine(join(this.gpu)(joinSize), anonymous2named, arrow2anonymous(paramslen))(f);
         let curry_f = new CurryFunction(f, target, constants);
         this.functions.push(curry_f);
