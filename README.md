@@ -6,8 +6,6 @@ an functional image process library accelerated by GPU
 
 *FunctionImage*是一个支持通过函数式的方法操作图像和二维数组的库.
 
-**WARN**:本项目仍处于开发中
-
 ## Demo
 
 ![Demo](./image/demo.png)
